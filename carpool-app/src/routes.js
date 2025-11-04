@@ -3,6 +3,7 @@ import MainLayout from "./components/MainLayout.js";
 import Home from "./components/mainPageComponents/home.js";
 import SearchCars from "./components/mainPageComponents/SearchCars.js";
 import Login from "./components/mainPageComponents/login.js";
+import SignUp from "./components/mainPageComponents/SignUp.js";
 const router = createBrowserRouter([
     {
         path: '/',
@@ -19,6 +20,11 @@ const router = createBrowserRouter([
             {
                 path: "/login",
                 element: <Login />
+            }
+            ,
+            {
+                path: "/signup",
+                element: <SignUp />
             }
         ]
     }
