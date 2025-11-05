@@ -152,5 +152,3 @@ License / author
 - Project by Sahana_Narasipura_Vasudevarao
 
 ---
-
-If you'd like I can create the `requirements.txt` file and a small `.env.example` to make setup smoother — tell me and I'll add them.
