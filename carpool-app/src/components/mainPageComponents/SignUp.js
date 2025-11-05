@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import './login.css'
+import { signUp } from '../../Routes/api'
+import { useAsync } from '../../hooks/useAsync'
 
 function SignUp() {
     const [profile, setProfile] = useState(null)
@@ -27,6 +30,10 @@ function SignUp() {
 
     const [hasLicense, setHasLicense] = useState(null) // true/false/null
     const [error, setError] = useState('')
+    const [success, setSuccess] = useState(false)
+    const [submitSignup, isLoading, submitError] = useAsync(signUp)
+    const [accountExists, setAccountExists] = useState(false)
+    const navigate = useNavigate()
 
     const handleProfileChange = (e) => {
         const file = e.target.files && e.target.files[0]
@@ -40,14 +47,16 @@ function SignUp() {
         })
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
+        setError('')
+        setSuccess(false)
+        
         // minimal validation
         if (!firstName.trim() || !lastName.trim() || !email.trim()) {
             setError('Please fill in first name, last name and email')
             return
         }
-        setError('')
 
         const formData = {
             profile, // File object (may be null)
@@ -71,7 +80,23 @@ function SignUp() {
             hasDriversLicense: hasLicense,
         }
 
-        console.log('SignUp form submitted:', formData)
+        try {
+            // reset account exists flag
+            setAccountExists(false)
+            await submitSignup(formData)
+            setSuccess(true)
+            // Redirect to login after successful signup
+            navigate('/login')
+        } catch (err) {
+            const msg = err?.message || 'Failed to create account. Please try again.'
+            // detect duplicate-account case thrown by API client
+            if (/already exists|account already exists|Account already exists/i.test(msg)) {
+                setAccountExists(true)
+                setError('Account already exists')
+            } else {
+                setError(msg)
+            }
+        }
     }
 
     return (
@@ -188,8 +213,16 @@ function SignUp() {
                     </fieldset>
 
                     {error && <div className="error" role="alert">{error}</div>}
+                    {accountExists && (
+                        <div className="info" role="status" style={{marginTop:8}}>
+                            Account already exists! <Link to="/login">Login Here</Link>
+                        </div>
+                    )}
+                    {success && <div className="success" role="alert">Account created successfully!</div>}
 
-                    <button className="submit" type="submit">Sign up</button>
+                    <button className="submit" type="submit" disabled={isLoading}>
+                        {isLoading ? 'Creating account...' : 'Sign up'}
+                    </button>
                 </form>
             </div>
         </div>
