@@ -1,6 +1,7 @@
 import {Link} from "react-router-dom";
 
 function Home() {
+    //change the function later to display the home page with good ui
     return (
         <>
             <div style={{textAlign:"center"}}>
