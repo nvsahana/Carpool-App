@@ -144,10 +144,6 @@ cd backend
 npx prisma studio --schema=prisma/schema.prisma
 ```
 
-If you want, I can also:
-- Add a `requirements.txt` for the backend listing the pinned Python packages used locally.
-- Add an npm `dev` script or docs for running Prisma migration/generation.
-
 License / author
 - Project by Sahana_Narasipura_Vasudevarao
 
