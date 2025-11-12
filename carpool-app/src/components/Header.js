@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import './Header.css';
 
@@ -32,12 +31,14 @@ function Header() {
                     >
                         Contact
                     </Link>
-                    <Link 
-                        to="/profile" 
-                        className={`nav-link ${location.pathname === '/profile' ? 'active' : ''}`}
-                    >
-                        Profile
-                    </Link>
+                    {localStorage.getItem('access_token') && (
+                        <Link 
+                            to="/profile" 
+                            className={`nav-link ${location.pathname === '/profile' ? 'active' : ''}`}
+                        >
+                            Profile
+                        </Link>
+                    )}
                 </nav>
             </div>
         </header>
