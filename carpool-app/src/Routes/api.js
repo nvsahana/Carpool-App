@@ -1,6 +1,6 @@
 // Backend API client
 
-const API_BASE = 'http://127.0.0.1:8000'  // FastAPI backend URL
+export const API_BASE = 'http://127.0.0.1:8000'  // FastAPI backend URL
 
 /**
  * Sign up a new user with profile picture and address details
@@ -15,6 +15,7 @@ export async function signUp(data) {
     formData.append('firstName', data.firstName)
     formData.append('lastName', data.lastName)
     formData.append('email', data.email)
+    formData.append('password', data.password)
     if (data.phone) formData.append('phone', data.phone)
     
     // Company address fields
@@ -64,3 +65,49 @@ export async function signUp(data) {
 }
 
 // Add other API functions here (login, search, etc)
+/**
+ * Login with email and password
+ * @param {string} email - User email
+ * @param {string} password - User password
+ * @returns {Promise<{access_token: string, token_type: string, user_id: number}>} JWT token and user info
+ */
+export async function login(email, password) {
+    // OAuth2PasswordRequestForm expects form data with username and password fields
+    const formData = new URLSearchParams()
+    formData.append('username', email) // OAuth2 uses 'username' field, but we pass email
+    formData.append('password', password)
+
+    const response = await fetch(`${API_BASE}/login`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+        credentials: 'include'
+    })
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Login failed')
+    }
+
+    return response.json()
+}
+
+/**
+ * Fetch current user using stored JWT token
+ */
+export async function getCurrentUser() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    const response = await fetch(`${API_BASE}/me`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    if (!response.ok) {
+        const error = await response.json().catch(()=>null)
+        throw new Error(error?.detail || 'Failed to load profile')
+    }
+    return response.json()
+}

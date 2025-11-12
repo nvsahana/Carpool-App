@@ -1,22 +1,47 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import './login.css'
+import { login } from '../../Routes/api'
+import { useAsync } from '../../hooks/useAsync'
 
 function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
+    const [success, setSuccess] = useState(false)
+    const [submitLogin, isLoading, submitError] = useAsync(login)
+    const navigate = useNavigate()
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
+        setError('')
+        setSuccess(false)
+        
         // Basic validation
         if (!email.trim() || !password) {
             setError('Please enter both email and password')
             return
         }
-        setError('')
-        console.log('LOGIN Successful')
+
+        try {
+            const response = await submitLogin(email, password)
+            
+            // Store the JWT token
+            if (response?.access_token) {
+                localStorage.setItem('access_token', response.access_token)
+                setSuccess(true)
+                
+                // Navigate to SearchCars page after successful login
+                setTimeout(() => {
+                    navigate('/searchCars')
+                }, 600)
+            } else {
+                setError('Login successful but no token received')
+            }
+        } catch (err) {
+            setError(err?.message || 'Login failed. Please check your credentials.')
+        }
     }
 
     return (
@@ -64,8 +89,11 @@ function Login() {
                     </label>
 
                     {error && <div className="error" role="alert">{error}</div>}
+                    {success && <div className="success" role="alert">Login successful! Redirecting...</div>}
 
-                    <button className="submit" type="submit">Sign in</button>
+                    <button className="submit" type="submit" disabled={isLoading}>
+                        {isLoading ? 'Signing in...' : 'Sign in'}
+                    </button>
                 </form>
 
                 <div className="foot">Don't have an account? <Link to="/signup">Sign up</Link></div>

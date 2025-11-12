@@ -21,6 +21,7 @@ model User {
   role           String   // "driver" or "passenger"
   willingToTake  Int[]    // array of numbers (1..5) when driver (use empty array if none)
   hasDriversLicense Boolean?
+  passwordHash   String? // bcrypt hashed password
   createdAt      DateTime @default(now())
 }
 

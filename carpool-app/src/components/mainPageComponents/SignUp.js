@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './login.css'
 import { signUp } from '../../Routes/api'
@@ -10,6 +10,7 @@ function SignUp() {
     const [lastName, setLastName] = useState('')
     const [phone, setPhone] = useState('')
     const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
 
     // Company address
     const [officeName, setOfficeName] = useState('')
@@ -57,6 +58,11 @@ function SignUp() {
             setError('Please fill in first name, last name and email')
             return
         }
+        
+        if (!password || password.length < 8) {
+            setError('Password must be at least 8 characters long')
+            return
+        }
 
         const formData = {
             profile, // File object (may be null)
@@ -64,6 +70,7 @@ function SignUp() {
             lastName,
             phone: phone || null,
             email,
+            password,
             companyAddress: {
                 officeName,
                 street: companyStreet,
@@ -83,8 +90,14 @@ function SignUp() {
         try {
             // reset account exists flag
             setAccountExists(false)
-            await submitSignup(formData)
+            const response = await submitSignup(formData)
             setSuccess(true)
+            
+            // Store the JWT token if returned
+            if (response?.access_token) {
+                localStorage.setItem('access_token', response.access_token)
+            }
+            
             // Redirect to login after successful signup
             navigate('/login')
         } catch (err) {
@@ -132,6 +145,19 @@ function SignUp() {
                     <label className="label">
                         <span className="label-text">Email address</span>
                         <input className="input" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} required />
+                    </label>
+
+                    <label className="label">
+                        <span className="label-text">Password</span>
+                        <input 
+                            className="input" 
+                            type="password" 
+                            value={password} 
+                            onChange={(e)=>setPassword(e.target.value)} 
+                            minLength={8}
+                            required 
+                            placeholder="Minimum 8 characters"
+                        />
                     </label>
 
                     <fieldset style={{border:'none', padding:0, margin:0}}>

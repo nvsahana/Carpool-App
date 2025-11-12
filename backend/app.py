@@ -1,15 +1,32 @@
 from typing import List, Optional
 import os
-from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from datetime import datetime, timedelta
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Depends, Request
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from prisma import Prisma
+from passlib.context import CryptContext
+from jose import jwt, JWTError
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# Authentication configuration
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI()
 db = Prisma()
+
+# Serve uploaded profile images
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Adjust this origin to your React dev server
 app.add_middleware(
@@ -32,9 +49,54 @@ async def shutdown():
     await db.disconnect()
 
 
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create a JWT access token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+
 @app.get("/")
 async def root():
     return {"ok": True}
+
+def decode_token(token: str):
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+@app.get("/me")
+async def get_me(request: Request):
+    """Return current user info based on Authorization: Bearer <token> header"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    user = await db.user.find_unique(where={"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "firstName": user.firstName,
+        "lastName": user.lastName,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role,
+        "willingToTake": user.willingToTake,
+        "hasDriversLicense": user.hasDriversLicense,
+        "profilePath": user.profilePath,
+    }
 
 
 @app.post("/signup")
@@ -42,6 +104,7 @@ async def signup(
     firstName: str = Form(...),
     lastName: str = Form(...),
     email: str = Form(...),
+    password: str = Form(...),
     phone: Optional[str] = Form(None),
     officeName: Optional[str] = Form(None),
     companyStreet: Optional[str] = Form(None),
@@ -56,8 +119,12 @@ async def signup(
     profile: Optional[UploadFile] = File(None),
 ):
     # Basic validation
-    if not firstName or not lastName or not email:
-        raise HTTPException(status_code=400, detail="firstName, lastName and email are required")
+    if not firstName or not lastName or not email or not password:
+        raise HTTPException(status_code=400, detail="firstName, lastName, email and password are required")
+    
+    # Validate password strength
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
 
     # Save profile file if present
     profile_path = None
@@ -85,10 +152,14 @@ async def signup(
     if homeStreet or homeCity or homeZip:
         home_data = {"create": {"street": homeStreet, "city": homeCity, "zipcode": homeZip}}
 
+    # Hash the password
+    hashed_password = pwd_context.hash(password)
+
     user_payload = {
         "firstName": firstName,
         "lastName": lastName,
         "email": email,
+        "passwordHash": hashed_password,
         "phone": phone,
         "profilePath": profile_path,
         "role": role,
@@ -112,4 +183,37 @@ async def signup(
         # Return a clear JSON error (will still include CORS headers from middleware)
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"id": user.id}
+    # Create JWT token
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
+
+    return {
+        "id": user.id,
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+@app.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Login endpoint - accepts email/password and returns JWT token"""
+    # Find user by email (username field contains email)
+    user = await db.user.find_first(where={"email": form_data.username})
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Check if password hash exists
+    if not user.passwordHash:
+        raise HTTPException(status_code=401, detail="Password not set for this account")
+    
+    # Verify password
+    if not pwd_context.verify(form_data.password, user.passwordHash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Create JWT token
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user.id
+    }
