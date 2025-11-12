@@ -1,9 +1,9 @@
-Carpool App — Local development
+Carpool App: Local development
 
 This repository contains two main parts:
 
-- backend/ — FastAPI backend (Python) with Prisma ORM
-- carpool-app/ — React frontend (Create React App)
+- backend/ - FastAPI backend (Python) with Prisma ORM
+- carpool-app/ - React frontend (Create React App)
 
 This README explains how to clone the repo, install dependencies, and run the frontend and backend locally for development.
 
