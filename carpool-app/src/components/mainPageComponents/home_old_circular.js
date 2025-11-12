@@ -25,120 +25,131 @@ function Home() {
                     Connect, Share, Save; Your Journey Starts Here
                 </p>
 
-                {/* Premium Feature Cards */}
-                <div className="features-showcase">
-                    {/* Card 1 - Find Rides */}
-                    <div className="premium-card">
-                        <div className="card-glow"></div>
-                        <div className="card-shine"></div>
-                        <div className="card-content">
-                            <div className="icon-wrapper">
-                                <div className="icon-bg"></div>
-                                <svg className="feature-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="searchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#ffffff"/>
-                                            <stop offset="100%" stopColor="#e0e0e0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <circle cx="40" cy="40" r="25" stroke="url(#searchGradient)" strokeWidth="7" fill="none"/>
-                                    <line x1="58" y1="58" x2="85" y2="85" stroke="url(#searchGradient)" strokeWidth="7" strokeLinecap="round"/>
-                                    <circle cx="40" cy="40" r="15" fill="url(#searchGradient)" opacity="0.3"/>
-                                </svg>
-                            </div>
-                            <h3 className="premium-title">Find Rides</h3>
-                            <p className="premium-description">
-                                Discover rides instantly with real-time matching
-                            </p>
-                            <div className="card-number">01</div>
+                {/* Feature Cards with Center Avatar */}
+                <div className="features-container">
+                    {/* Center Happy Face */}
+                    <div className="center-avatar">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <radialGradient id="faceGradient" cx="30%" cy="30%">
+                                    <stop offset="0%" stopColor="#FFD700"/>
+                                    <stop offset="100%" stopColor="#FFA500"/>
+                                </radialGradient>
+                            </defs>
+                            <circle cx="50" cy="50" r="45" fill="url(#faceGradient)"/>
+                            <circle cx="35" cy="40" r="5" fill="#2c3e50"/>
+                            <circle cx="65" cy="40" r="5" fill="#2c3e50"/>
+                            <path d="M 30 60 Q 50 75 70 60" stroke="#2c3e50" strokeWidth="4" fill="none" strokeLinecap="round"/>
+                            <circle cx="25" cy="55" r="6" fill="#FF69B4" opacity="0.4"/>
+                            <circle cx="75" cy="55" r="6" fill="#FF69B4" opacity="0.4"/>
+                        </svg>
+                        
+                        {/* Sparkles */}
+                        <div className="center-sparkle">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/>
+                            </svg>
                         </div>
-                    </div>
-                    
-                    {/* Card 2 - Save Money */}
-                    <div className="premium-card">
-                        <div className="card-glow"></div>
-                        <div className="card-shine"></div>
-                        <div className="card-content">
-                            <div className="icon-wrapper">
-                                <div className="icon-bg"></div>
-                                <svg className="feature-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="moneyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#ffffff"/>
-                                            <stop offset="100%" stopColor="#e8e8e8"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <circle cx="50" cy="50" r="40" fill="url(#moneyGradient)" opacity="0.3"/>
-                                    <text x="50" y="68" fontSize="50" fill="url(#moneyGradient)" fontWeight="bold" textAnchor="middle">$</text>
-                                    <path d="M 20 40 Q 50 25 80 40" stroke="url(#moneyGradient)" strokeWidth="4" fill="none" strokeLinecap="round"/>
-                                </svg>
-                            </div>
-                            <h3 className="premium-title">Save Money</h3>
-                            <p className="premium-description">
-                                Split costs and keep more in your wallet
-                            </p>
-                            <div className="card-number">02</div>
+                        <div className="center-sparkle">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/>
+                            </svg>
                         </div>
-                    </div>
-                    
-                    {/* Card 3 - Go Green */}
-                    <div className="premium-card">
-                        <div className="card-glow"></div>
-                        <div className="card-shine"></div>
-                        <div className="card-content">
-                            <div className="icon-wrapper">
-                                <div className="icon-bg"></div>
-                                <svg className="feature-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#ffffff"/>
-                                            <stop offset="100%" stopColor="#e5e5e5"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <circle cx="50" cy="50" r="38" fill="url(#greenGradient)" opacity="0.3"/>
-                                    <path d="M 35 40 Q 42 30 50 40 L 53 45 L 50 50 L 45 47 Z" fill="url(#greenGradient)"/>
-                                    <path d="M 55 50 Q 62 45 68 52 L 66 58 L 60 60 Z" fill="url(#greenGradient)"/>
-                                    <path d="M 40 60 Q 45 55 50 60 L 52 66 L 47 68 Z" fill="url(#greenGradient)"/>
-                                    <ellipse cx="50" cy="50" rx="38" ry="15" fill="none" stroke="url(#greenGradient)" strokeWidth="2" opacity="0.5"/>
-                                </svg>
-                            </div>
-                            <h3 className="premium-title">Go Green</h3>
-                            <p className="premium-description">
-                                Reduce emissions and protect our planet
-                            </p>
-                            <div className="card-number">03</div>
+                        <div className="center-sparkle">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/>
+                            </svg>
+                        </div>
+                        <div className="center-sparkle">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/>
+                            </svg>
                         </div>
                     </div>
 
-                    {/* Card 4 - Community */}
-                    <div className="premium-card">
-                        <div className="card-glow"></div>
-                        <div className="card-shine"></div>
-                        <div className="card-content">
-                            <div className="icon-wrapper">
-                                <div className="icon-bg"></div>
-                                <svg className="feature-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="communityGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#ffffff"/>
-                                            <stop offset="100%" stopColor="#ebebeb"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <circle cx="30" cy="35" r="12" fill="url(#communityGradient)"/>
-                                    <circle cx="50" cy="30" r="14" fill="url(#communityGradient)"/>
-                                    <circle cx="70" cy="35" r="12" fill="url(#communityGradient)"/>
-                                    <path d="M 20 55 Q 30 50 40 55 L 40 70 L 20 70 Z" fill="url(#communityGradient)" opacity="0.9"/>
-                                    <path d="M 40 50 Q 50 45 60 50 L 60 70 L 40 70 Z" fill="url(#communityGradient)" opacity="0.9"/>
-                                    <path d="M 60 55 Q 70 50 80 55 L 80 70 L 60 70 Z" fill="url(#communityGradient)" opacity="0.9"/>
-                                    <path d="M 25 60 L 75 60" stroke="url(#communityGradient)" strokeWidth="3" strokeLinecap="round"/>
-                                </svg>
-                            </div>
-                            <h3 className="premium-title">Build Community</h3>
-                            <p className="premium-description">
-                                Connect with amazing people every day
-                            </p>
-                            <div className="card-number">04</div>
+                    {/* Card 1 - Top Left */}
+                    <div className="feature-card">
+                        <div className="feature-icon">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="40" cy="40" r="25" stroke="#3498db" strokeWidth="6" fill="none"/>
+                                <line x1="58" y1="58" x2="80" y2="80" stroke="#3498db" strokeWidth="6" strokeLinecap="round"/>
+                                <rect x="25" y="35" width="30" height="12" rx="2" fill="#3498db"/>
+                                <circle cx="30" cy="47" r="3" fill="#2c3e50"/>
+                                <circle cx="50" cy="47" r="3" fill="#2c3e50"/>
+                            </svg>
                         </div>
+                        <h3 className="feature-title">Find Your Ride</h3>
+                        <p className="feature-text">
+                            Discover people heading to your destination
+                        </p>
+                    </div>
+                    
+                    {/* Card 2 - Top Right */}
+                    <div className="feature-card">
+                        <div className="feature-icon">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <ellipse cx="50" cy="55" rx="35" ry="30" fill="#f39c12"/>
+                                <circle cx="50" cy="55" r="25" fill="#f39c12"/>
+                                <rect x="45" y="30" width="10" height="3" fill="#c0392b"/>
+                                <circle cx="42" cy="50" r="3" fill="#2c3e50"/>
+                                <circle cx="58" cy="50" r="3" fill="#2c3e50"/>
+                                <ellipse cx="50" cy="60" rx="8" ry="6" fill="#e67e22"/>
+                                <circle cx="47" cy="60" r="1.5" fill="#2c3e50"/>
+                                <circle cx="53" cy="60" r="1.5" fill="#2c3e50"/>
+                                <text x="50" y="50" fontSize="20" fill="#27ae60" fontWeight="bold" textAnchor="middle">$</text>
+                            </svg>
+                        </div>
+                        <h3 className="feature-title">Save Money</h3>
+                        <p className="feature-text">
+                            Split costs and reduce expenses
+                        </p>
+                    </div>
+                    
+                    {/* Card 3 - Bottom Left */}
+                    <div className="feature-card">
+                        <div className="feature-icon">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <radialGradient id="earthGradient">
+                                        <stop offset="0%" stopColor="#3498db"/>
+                                        <stop offset="100%" stopColor="#2980b9"/>
+                                    </radialGradient>
+                                </defs>
+                                <circle cx="50" cy="50" r="40" fill="url(#earthGradient)"/>
+                                <path d="M 30 30 Q 40 25 50 30 L 55 35 L 50 40 L 45 38 L 40 35 Z" fill="#27ae60"/>
+                                <path d="M 60 45 Q 70 42 75 50 L 72 58 L 65 60 L 60 55 Z" fill="#27ae60"/>
+                                <path d="M 35 55 Q 40 50 45 55 L 48 62 L 42 65 L 35 62 Z" fill="#27ae60"/>
+                                <ellipse cx="50" cy="50" rx="40" ry="15" fill="none" stroke="#ffffff" strokeWidth="1" opacity="0.3"/>
+                                <path d="M 50 20 L 53 17 Q 56 14 58 17 Q 60 20 58 23 L 50 30 L 42 23 Q 40 20 42 17 Q 44 14 47 17 Z" fill="#e74c3c"/>
+                            </svg>
+                        </div>
+                        <h3 className="feature-title">Go Green</h3>
+                        <p className="feature-text">
+                            Reduce carbon footprint together
+                        </p>
+                    </div>
+
+                    {/* Card 4 - Bottom Right */}
+                    <div className="feature-card">
+                        <div className="feature-icon">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="35" cy="35" r="15" fill="#ffd89b"/>
+                                <circle cx="28" cy="33" r="2" fill="#2c3e50"/>
+                                <circle cx="42" cy="33" r="2" fill="#2c3e50"/>
+                                <path d="M 28 38 Q 35 42 42 38" stroke="#2c3e50" strokeWidth="2" fill="none"/>
+                                <path d="M 20 50 Q 35 45 50 50 L 50 70 L 20 70 Z" fill="#3498db"/>
+                                <circle cx="65" cy="35" r="15" fill="#ffd89b"/>
+                                <circle cx="58" cy="33" r="2" fill="#2c3e50"/>
+                                <circle cx="72" cy="33" r="2" fill="#2c3e50"/>
+                                <path d="M 58 38 Q 65 42 72 38" stroke="#2c3e50" strokeWidth="2" fill="none"/>
+                                <path d="M 50 50 Q 65 45 80 50 L 80 70 L 50 70 Z" fill="#e74c3c"/>
+                                <ellipse cx="50" cy="40" rx="45" ry="12" fill="none" stroke="#f39c12" strokeWidth="3" strokeDasharray="5,3"/>
+                            </svg>
+                        </div>
+                        <h3 className="feature-title">Build Community</h3>
+                        <p className="feature-text">
+                            Connect with fellow commuters
+                        </p>
                     </div>
                 </div>
 
