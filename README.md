@@ -17,11 +17,9 @@ Prerequisites
 1) Clone
 
 ```bash
-git clone <repo_url>
+git clone https://github.com/nvsahana/Carpool-App.git
 cd Carpool-App
 ```
-
-Replace <repo_url> with your repository URL (e.g. https://github.com/yourname/Carpool-App.git).
 
 2) Backend (FastAPI + Prisma)
 
