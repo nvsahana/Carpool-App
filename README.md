@@ -143,6 +143,6 @@ npx prisma studio --schema=prisma/schema.prisma
 ```
 
 License / author
-- Project by Sahana_Narasipura_Vasudevarao
+- Project by Sahana Narasipura Vasudevarao
 
 ---
