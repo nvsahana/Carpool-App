@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, searchCarpools, API_BASE } from '../../Routes/api';
+import { getCurrentUser, searchCarpools, getProfileImageUrl } from '../../Routes/api';
 import './SearchCars.css';
 
 function SearchCars() {
@@ -79,9 +79,7 @@ function SearchCars() {
     };
 
     const getAvatarUrl = (profilePath) => {
-        if (!profilePath) return null;
-        const filename = profilePath.split('/').pop();
-        return `${API_BASE}/uploads/${filename}`;
+        return getProfileImageUrl(profilePath);
     };
 
     if (!currentUser) {

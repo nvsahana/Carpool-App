@@ -113,6 +113,23 @@ export async function getCurrentUser() {
 }
 
 /**
+ * Get the full URL for a profile image
+ * Handles both local storage and S3 URLs
+ */
+export function getProfileImageUrl(profilePath) {
+    if (!profilePath) return null;
+    
+    // If it's already a full URL (S3), return as-is
+    if (profilePath.startsWith('http://') || profilePath.startsWith('https://')) {
+        return profilePath;
+    }
+    
+    // Otherwise, it's a local file - get filename and construct local URL
+    const filename = profilePath.split('/').pop();
+    return `${API_BASE}/uploads/${filename}`;
+}
+
+/**
  * Search for carpool matches based on current user's office location
  * @param {string} searchType - 'office', 'street', or 'city'
  * @returns {Promise<Array>} Array of matching users

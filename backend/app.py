@@ -1,5 +1,9 @@
-from typing import List, Optional
+
 import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -7,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prisma import Prisma
 from passlib.context import CryptContext
 from jose import jwt, JWTError
+from storage import storage_service
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -156,11 +161,8 @@ async def signup(
     profile_path = None
     if profile:
         filename = f"{int(__import__('time').time())}_{profile.filename}"
-        dest = os.path.join(UPLOAD_DIR, filename)
-        with open(dest, "wb") as f:
-            content = await profile.read()
-            f.write(content)
-        profile_path = dest
+        content = await profile.read()
+        profile_path = await storage_service.save_file(content, filename)
 
     # Build nested create dicts only if values provided
     company_data = None
