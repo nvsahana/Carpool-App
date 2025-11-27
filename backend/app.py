@@ -83,10 +83,17 @@ async def get_me(request: Request):
     user_id = payload.get("user_id")
     if not user_id:
         raise HTTPException(status_code=400, detail="Malformed token payload")
-    user = await db.user.find_unique(where={"id": user_id})
+    user = await db.user.find_unique(
+        where={"id": user_id},
+        include={
+            "companyAddress": True,
+            "homeAddress": True
+        }
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
+    
+    user_data = {
         "id": user.id,
         "firstName": user.firstName,
         "lastName": user.lastName,
@@ -96,7 +103,26 @@ async def get_me(request: Request):
         "willingToTake": user.willingToTake,
         "hasDriversLicense": user.hasDriversLicense,
         "profilePath": user.profilePath,
+        "companyAddress": None,
+        "homeAddress": None
     }
+    
+    if user.companyAddress:
+        user_data["companyAddress"] = {
+            "officeName": user.companyAddress.officeName,
+            "street": user.companyAddress.street,
+            "city": user.companyAddress.city,
+            "zipcode": user.companyAddress.zipcode
+        }
+    
+    if user.homeAddress:
+        user_data["homeAddress"] = {
+            "street": user.homeAddress.street,
+            "city": user.homeAddress.city,
+            "zipcode": user.homeAddress.zipcode
+        }
+    
+    return user_data
 
 
 @app.post("/signup")
@@ -217,3 +243,184 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "token_type": "bearer",
         "user_id": user.id
     }
+
+
+@app.get("/search")
+async def search_carpools(
+    request: Request,
+    type: str
+):
+    """Search for carpool matches based on current user's office location"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    current_user_id = payload.get("user_id")
+    if not current_user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get current user's addresses for matching
+    current_user = await db.user.find_unique(
+        where={"id": current_user_id},
+        include={
+            "companyAddress": True,
+            "homeAddress": True
+        }
+    )
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not current_user.companyAddress:
+        raise HTTPException(status_code=400, detail="Please complete your company address in your profile first")
+    
+    # Build search query based on type using current user's company address
+    where_clause = {}
+    
+    if type == "office":
+        # Match same office name (exact match)
+        if not current_user.companyAddress.officeName:
+            raise HTTPException(status_code=400, detail="Office name not set in your profile")
+        where_clause = {
+            "companyAddress": {
+                "is": {
+                    "officeName": {"equals": current_user.companyAddress.officeName, "mode": "insensitive"}
+                }
+            }
+        }
+    elif type == "street":
+        # Match same street and city
+        if not current_user.companyAddress.street:
+            raise HTTPException(status_code=400, detail="Street address not set in your profile")
+        where_clause = {
+            "companyAddress": {
+                "is": {
+                    "AND": [
+                        {"street": {"equals": current_user.companyAddress.street, "mode": "insensitive"}},
+                        {"city": {"equals": current_user.companyAddress.city, "mode": "insensitive"}}
+                    ]
+                }
+            }
+        }
+    elif type == "city":
+        # Match same city
+        if not current_user.companyAddress.city:
+            raise HTTPException(status_code=400, detail="City not set in your profile")
+        where_clause = {
+            "companyAddress": {
+                "is": {
+                    "city": {"equals": current_user.companyAddress.city, "mode": "insensitive"}
+                }
+            }
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Invalid search type. Must be 'office', 'street', or 'city'")
+    
+    # Exclude current user from results
+    where_clause["id"] = {"not": current_user_id}
+    
+    # Find matching users
+    users = await db.user.find_many(
+        where=where_clause,
+        include={
+            "companyAddress": True,
+            "homeAddress": True
+        }
+    )
+    
+    # Sort users by home location match priority
+    def calculate_match_score(user):
+        score = 0
+        match_info = {
+            "sameHomeCity": False,
+            "sameHomeStreet": False,
+            "sameHomeZipcode": False
+        }
+        
+        if current_user.homeAddress and user.homeAddress:
+            # Check home city match
+            if current_user.homeAddress.city and user.homeAddress.city:
+                if current_user.homeAddress.city.lower() == user.homeAddress.city.lower():
+                    score += 1000  # Highest priority
+                    match_info["sameHomeCity"] = True
+            
+            # Check home zipcode match
+            if current_user.homeAddress.zipcode and user.homeAddress.zipcode:
+                if current_user.homeAddress.zipcode == user.homeAddress.zipcode:
+                    score += 500
+                    match_info["sameHomeZipcode"] = True
+            
+            # Check home street match
+            if current_user.homeAddress.street and user.homeAddress.street:
+                if current_user.homeAddress.street.lower() == user.homeAddress.street.lower():
+                    score += 300
+                    match_info["sameHomeStreet"] = True
+        
+        # Add office match bonus
+        if user.companyAddress and current_user.companyAddress:
+            # Same office name
+            if type == "office" and user.companyAddress.officeName and current_user.companyAddress.officeName:
+                if user.companyAddress.officeName.lower() == current_user.companyAddress.officeName.lower():
+                    score += 100
+            
+            # Same street
+            if type in ["office", "street"] and user.companyAddress.street and current_user.companyAddress.street:
+                if user.companyAddress.street.lower() == current_user.companyAddress.street.lower():
+                    score += 75
+            
+            # Same city (always applicable)
+            if user.companyAddress.city and current_user.companyAddress.city:
+                if user.companyAddress.city.lower() == current_user.companyAddress.city.lower():
+                    score += 50
+        
+        return score, match_info
+    
+    # Add match scores and sort
+    results = []
+    for user in users:
+        score, match_info = calculate_match_score(user)
+        user_data = {
+            "id": user.id,
+            "firstName": user.firstName,
+            "lastName": user.lastName,
+            "email": user.email,
+            "phone": user.phone,
+            "role": user.role,
+            "willingToTake": user.willingToTake,
+            "hasDriversLicense": user.hasDriversLicense,
+            "profilePath": user.profilePath,
+            "companyAddress": None,
+            "homeAddress": None,
+            "matchScore": match_info,
+            "_score": score
+        }
+        
+        if user.companyAddress:
+            user_data["companyAddress"] = {
+                "officeName": user.companyAddress.officeName,
+                "street": user.companyAddress.street,
+                "city": user.companyAddress.city,
+                "zipcode": user.companyAddress.zipcode
+            }
+        
+        if user.homeAddress:
+            # Don't reveal home street for privacy
+            user_data["homeAddress"] = {
+                "city": user.homeAddress.city,
+                "zipcode": user.homeAddress.zipcode
+            }
+        
+        results.append(user_data)
+    
+    # Sort by match score (highest first)
+    results.sort(key=lambda x: x["_score"], reverse=True)
+    
+    # Return top 6 best matches
+    top_results = results[:6]
+    
+    # Remove internal score field
+    for r in top_results:
+        del r["_score"]
+    
+    return top_results

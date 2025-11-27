@@ -111,3 +111,26 @@ export async function getCurrentUser() {
     }
     return response.json()
 }
+
+/**
+ * Search for carpool matches based on current user's office location
+ * @param {string} searchType - 'office', 'street', or 'city'
+ * @returns {Promise<Array>} Array of matching users
+ */
+export async function searchCarpools(searchType) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/search?type=${encodeURIComponent(searchType)}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Search failed')
+    }
+    
+    return response.json()
+}
