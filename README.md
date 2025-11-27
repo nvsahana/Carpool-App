@@ -5,6 +5,26 @@ This repository contains two main parts:
 - backend/ - FastAPI backend (Python) with Prisma ORM
 - carpool-app/ - React frontend (Create React App)
 
+## 🚀 Quick Start (Automated)
+
+For the fastest setup, use the automated scripts:
+
+### First Time Setup
+```bash
+./setup.sh
+```
+This will automatically set up PostgreSQL, create the database, install all dependencies, and start both servers.
+
+### Starting After Initial Setup
+```bash
+./start.sh
+```
+This quickly starts both backend and frontend servers.
+
+---
+
+## Manual Setup Instructions
+
 This README explains how to clone the repo, install dependencies, and run the frontend and backend locally for development.
 
 Prerequisites
