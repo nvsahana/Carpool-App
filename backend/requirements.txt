@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+prisma
+passlib
+bcrypt==4.1.3
+python-jose[cryptography]
+python-multipart
+python-dotenv
+boto3
