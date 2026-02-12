@@ -426,3 +426,519 @@ async def search_carpools(
         del r["_score"]
     
     return top_results
+
+
+@app.post("/connection-requests")
+async def send_connection_request(
+    request: Request,
+    receiverId: int = Form(...)
+):
+    """Send a connection request to another user"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    sender_id = payload.get("user_id")
+    if not sender_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Validate: can't send request to yourself
+    if sender_id == receiverId:
+        raise HTTPException(status_code=400, detail="Cannot send connection request to yourself")
+    
+    # Check if receiver exists
+    receiver = await db.user.find_unique(where={"id": receiverId})
+    if not receiver:
+        raise HTTPException(status_code=404, detail="Receiver not found")
+    
+    # Check if request already exists
+    existing = await db.connectionrequest.find_first(
+        where={
+            "senderId": sender_id,
+            "receiverId": receiverId
+        }
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Connection request already sent")
+    
+    # Create connection request
+    connection_request = await db.connectionrequest.create({
+        "senderId": sender_id,
+        "receiverId": receiverId,
+        "status": "pending"
+    })
+    
+    return {
+        "id": connection_request.id,
+        "senderId": connection_request.senderId,
+        "receiverId": connection_request.receiverId,
+        "status": connection_request.status,
+        "createdAt": connection_request.createdAt.isoformat()
+    }
+
+
+@app.get("/connection-requests")
+async def get_connection_requests(request: Request):
+    """Get all connection requests for the current user (sent and received)"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get received requests (pending)
+    received_requests = await db.connectionrequest.find_many(
+        where={
+            "receiverId": user_id,
+            "status": "pending"
+        },
+        include={
+            "sender": {
+                "include": {
+                    "companyAddress": True,
+                    "homeAddress": True
+                }
+            }
+        },
+        order={"createdAt": "desc"}
+    )
+    
+    # Get sent requests
+    sent_requests = await db.connectionrequest.find_many(
+        where={
+            "senderId": user_id
+        },
+        include={
+            "receiver": {
+                "include": {
+                    "companyAddress": True,
+                    "homeAddress": True
+                }
+            }
+        },
+        order={"createdAt": "desc"}
+    )
+    
+    # Format received requests
+    received = []
+    for req in received_requests:
+        received.append({
+            "id": req.id,
+            "status": req.status,
+            "createdAt": req.createdAt.isoformat(),
+            "sender": {
+                "id": req.sender.id,
+                "firstName": req.sender.firstName,
+                "lastName": req.sender.lastName,
+                "email": req.sender.email,
+                "phone": req.sender.phone,
+                "role": req.sender.role,
+                "profilePath": req.sender.profilePath,
+                "companyAddress": {
+                    "officeName": req.sender.companyAddress.officeName if req.sender.companyAddress else None,
+                    "city": req.sender.companyAddress.city if req.sender.companyAddress else None
+                } if req.sender.companyAddress else None,
+                "homeAddress": {
+                    "city": req.sender.homeAddress.city if req.sender.homeAddress else None
+                } if req.sender.homeAddress else None
+            }
+        })
+    
+    # Format sent requests
+    sent = []
+    for req in sent_requests:
+        sent.append({
+            "id": req.id,
+            "status": req.status,
+            "createdAt": req.createdAt.isoformat(),
+            "receiver": {
+                "id": req.receiver.id,
+                "firstName": req.receiver.firstName,
+                "lastName": req.receiver.lastName,
+                "email": req.receiver.email,
+                "phone": req.receiver.phone,
+                "role": req.receiver.role,
+                "profilePath": req.receiver.profilePath,
+                "companyAddress": {
+                    "officeName": req.receiver.companyAddress.officeName if req.receiver.companyAddress else None,
+                    "city": req.receiver.companyAddress.city if req.receiver.companyAddress else None
+                } if req.receiver.companyAddress else None,
+                "homeAddress": {
+                    "city": req.receiver.homeAddress.city if req.receiver.homeAddress else None
+                } if req.receiver.homeAddress else None
+            }
+        })
+    
+    return {
+        "received": received,
+        "sent": sent
+    }
+
+
+@app.patch("/connection-requests/{request_id}/accept")
+async def accept_connection_request(
+    request: Request,
+    request_id: int
+):
+    """Accept a connection request"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Find the connection request
+    conn_request = await db.connectionrequest.find_unique(where={"id": request_id})
+    if not conn_request:
+        raise HTTPException(status_code=404, detail="Connection request not found")
+    
+    # Verify that the current user is the receiver
+    if conn_request.receiverId != user_id:
+        raise HTTPException(status_code=403, detail="You can only accept requests sent to you")
+    
+    # Verify request is still pending
+    if conn_request.status != "pending":
+        raise HTTPException(status_code=400, detail="This request has already been processed")
+    
+    # Update status to accepted
+    updated_request = await db.connectionrequest.update(
+        where={"id": request_id},
+        data={"status": "accepted"}
+    )
+    
+    return {
+        "id": updated_request.id,
+        "status": updated_request.status,
+        "message": "Connection request accepted"
+    }
+
+
+@app.patch("/connection-requests/{request_id}/reject")
+async def reject_connection_request(
+    request: Request,
+    request_id: int
+):
+    """Reject a connection request"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Find the connection request
+    conn_request = await db.connectionrequest.find_unique(where={"id": request_id})
+    if not conn_request:
+        raise HTTPException(status_code=404, detail="Connection request not found")
+    
+    # Verify that the current user is the receiver
+    if conn_request.receiverId != user_id:
+        raise HTTPException(status_code=403, detail="You can only reject requests sent to you")
+    
+    # Verify request is still pending
+    if conn_request.status != "pending":
+        raise HTTPException(status_code=400, detail="This request has already been processed")
+    
+    # Delete the rejected request
+    await db.connectionrequest.delete(where={"id": request_id})
+    
+    return {
+        "message": "Connection request rejected and removed"
+    }
+
+
+@app.get("/connected-users")
+async def get_connected_users(request: Request):
+    """Get all users connected to the current user (accepted connections)"""
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get all accepted connections where user is sender or receiver
+    connections = await db.connectionrequest.find_many(
+        where={
+            "OR": [
+                {"senderId": user_id},
+                {"receiverId": user_id}
+            ],
+            "status": "accepted"
+        },
+        include={
+            "sender": {
+                "include": {
+                    "companyAddress": True,
+                    "homeAddress": True
+                }
+            },
+            "receiver": {
+                "include": {
+                    "companyAddress": True,
+                    "homeAddress": True
+                }
+            }
+        },
+        order={"updatedAt": "desc"}
+    )
+    
+    # Extract the connected users (exclude current user)
+    connected_users = []
+    for conn in connections:
+        # Determine which user is the connected one (not the current user)
+        other_user = conn.receiver if conn.senderId == user_id else conn.sender
+        
+        connected_users.append({
+            "id": other_user.id,
+            "firstName": other_user.firstName,
+            "lastName": other_user.lastName,
+            "email": other_user.email,
+            "phone": other_user.phone,
+            "role": other_user.role,
+            "willingToTake": other_user.willingToTake,
+            "hasDriversLicense": other_user.hasDriversLicense,
+            "profilePath": other_user.profilePath,
+            "companyAddress": {
+                "officeName": other_user.companyAddress.officeName if other_user.companyAddress else None,
+                "street": other_user.companyAddress.street if other_user.companyAddress else None,
+                "city": other_user.companyAddress.city if other_user.companyAddress else None,
+                "zipcode": other_user.companyAddress.zipcode if other_user.companyAddress else None
+            } if other_user.companyAddress else None,
+            "homeAddress": {
+                "city": other_user.homeAddress.city if other_user.homeAddress else None,
+                "zipcode": other_user.homeAddress.zipcode if other_user.homeAddress else None
+            } if other_user.homeAddress else None,
+            "connectedAt": conn.updatedAt.isoformat()
+        })
+    
+    return connected_users
+
+
+@app.get("/conversations")
+async def get_conversations(request: Request):
+    """Get all conversations for the current user with last message"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get all conversations where user is participant
+    conversations = await db.conversation.find_many(
+        where={
+            "OR": [
+                {"user1Id": user_id},
+                {"user2Id": user_id}
+            ]
+        },
+        include={
+            "user1": {
+                "include": {
+                    "companyAddress": True
+                }
+            },
+            "user2": {
+                "include": {
+                    "companyAddress": True
+                }
+            },
+            "messages": {
+                "take": 1,
+                "order_by": {"createdAt": "desc"}
+            }
+        },
+        order_by={"updatedAt": "desc"}
+    )
+    
+    result = []
+    for conv in conversations:
+        # Determine the other user
+        other_user = conv.user2 if conv.user1Id == user_id else conv.user1
+        
+        # Count unread messages from other user
+        unread_count = await db.message.count(
+            where={
+                "conversationId": conv.id,
+                "senderId": other_user.id,
+                "isRead": False
+            }
+        )
+        
+        result.append({
+            "id": conv.id,
+            "otherUser": {
+                "id": other_user.id,
+                "firstName": other_user.firstName,
+                "lastName": other_user.lastName,
+                "profilePath": other_user.profilePath,
+                "role": other_user.role,
+                "companyAddress": {
+                    "city": other_user.companyAddress.city if other_user.companyAddress else None
+                } if other_user.companyAddress else None
+            },
+            "lastMessage": {
+                "content": conv.messages[0].content if conv.messages else None,
+                "createdAt": conv.messages[0].createdAt.isoformat() if conv.messages else None,
+                "senderId": conv.messages[0].senderId if conv.messages else None
+            } if conv.messages else None,
+            "unreadCount": unread_count,
+            "updatedAt": conv.updatedAt.isoformat()
+        })
+    
+    return result
+
+
+@app.get("/conversations/{other_user_id}/messages")
+async def get_messages(
+    request: Request,
+    other_user_id: int
+):
+    """Get all messages in a conversation with another user"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Find or create conversation
+    conversation = await db.conversation.find_first(
+        where={
+            "OR": [
+                {"user1Id": user_id, "user2Id": other_user_id},
+                {"user1Id": other_user_id, "user2Id": user_id}
+            ]
+        }
+    )
+    
+    if not conversation:
+        # Create new conversation
+        conversation = await db.conversation.create({
+            "user1Id": min(user_id, other_user_id),
+            "user2Id": max(user_id, other_user_id)
+        })
+    
+    # Get messages
+    messages = await db.message.find_many(
+        where={"conversationId": conversation.id},
+        order_by={"createdAt": "asc"}
+    )
+    
+    # Mark messages from other user as read
+    await db.message.update_many(
+        where={
+            "conversationId": conversation.id,
+            "senderId": other_user_id,
+            "isRead": False
+        },
+        data={"isRead": True}
+    )
+    
+    return {
+        "conversationId": conversation.id,
+        "messages": [
+            {
+                "id": msg.id,
+                "senderId": msg.senderId,
+                "content": msg.content,
+                "isRead": msg.isRead,
+                "createdAt": msg.createdAt.isoformat()
+            }
+            for msg in messages
+        ]
+    }
+
+
+@app.post("/conversations/{other_user_id}/messages")
+async def send_message(
+    request: Request,
+    other_user_id: int,
+    content: str = Form(...)
+):
+    """Send a message to another user"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Validate content
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+    
+    # Check if users are connected
+    connection = await db.connectionrequest.find_first(
+        where={
+            "OR": [
+                {"senderId": user_id, "receiverId": other_user_id},
+                {"senderId": other_user_id, "receiverId": user_id}
+            ],
+            "status": "accepted"
+        }
+    )
+    
+    if not connection:
+        raise HTTPException(status_code=403, detail="You can only message connected users")
+    
+    # Find or create conversation
+    conversation = await db.conversation.find_first(
+        where={
+            "OR": [
+                {"user1Id": user_id, "user2Id": other_user_id},
+                {"user1Id": other_user_id, "user2Id": user_id}
+            ]
+        }
+    )
+    
+    if not conversation:
+        conversation = await db.conversation.create({
+            "user1Id": min(user_id, other_user_id),
+            "user2Id": max(user_id, other_user_id)
+        })
+    
+    # Create message
+    message = await db.message.create({
+        "conversationId": conversation.id,
+        "senderId": user_id,
+        "content": content.strip()
+    })
+    
+    # Update conversation timestamp
+    await db.conversation.update(
+        where={"id": conversation.id},
+        data={"updatedAt": datetime.utcnow()}
+    )
+    
+    return {
+        "id": message.id,
+        "conversationId": message.conversationId,
+        "senderId": message.senderId,
+        "content": message.content,
+        "isRead": message.isRead,
+        "createdAt": message.createdAt.isoformat()
+    }

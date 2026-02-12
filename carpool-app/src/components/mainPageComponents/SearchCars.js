@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, searchCarpools, getProfileImageUrl } from '../../Routes/api';
+import { getCurrentUser, searchCarpools, getProfileImageUrl, sendConnectionRequest, getConnectionRequests, acceptConnectionRequest, rejectConnectionRequest, getConnectedUsers } from '../../Routes/api';
 import './SearchCars.css';
 
 function SearchCars() {
@@ -12,6 +12,13 @@ function SearchCars() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const [connectionRequests, setConnectionRequests] = useState({ received: [], sent: [] });
+    const [connectedUsers, setConnectedUsers] = useState([]);
+    const [activeTab, setActiveTab] = useState('search'); // 'search', 'requests', or 'connected'
+    const [sendingRequest, setSendingRequest] = useState(false);
+    const [newRequestsCount, setNewRequestsCount] = useState(0);
+    const [showNotification, setShowNotification] = useState(false);
+    const [previousRequestCount, setPreviousRequestCount] = useState(0);
 
     useEffect(() => {
         const token = localStorage.getItem('access_token');
@@ -28,12 +35,39 @@ function SearchCars() {
                 if (user && user.companyAddress) {
                     loadInitialMatches();
                 }
+                // Load connection requests and connected users
+                loadConnectionRequests();
+                loadConnectedUsers();
             })
             .catch(err => {
                 console.error('Failed to load user:', err);
                 navigate('/login');
             });
     }, [navigate]);
+
+    // Polling effect for real-time updates
+    useEffect(() => {
+        // Set up polling interval (every 5 seconds)
+        const pollInterval = setInterval(() => {
+            loadConnectionRequests();
+            loadConnectedUsers();
+        }, 5000); // Poll every 5 seconds
+
+        // Cleanup interval on unmount
+        return () => clearInterval(pollInterval);
+    }, []);
+
+    // Track new requests for notifications
+    useEffect(() => {
+        const currentCount = connectionRequests.received.length;
+        if (previousRequestCount > 0 && currentCount > previousRequestCount) {
+            setNewRequestsCount(currentCount - previousRequestCount);
+            setShowNotification(true);
+            // Auto-hide notification after 5 seconds
+            setTimeout(() => setShowNotification(false), 5000);
+        }
+        setPreviousRequestCount(currentCount);
+    }, [connectionRequests.received]);
 
     const loadInitialMatches = async () => {
         setLoading(true);
@@ -46,6 +80,28 @@ function SearchCars() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const loadConnectionRequests = async () => {
+        try {
+            const data = await getConnectionRequests();
+            setConnectionRequests(data);
+        } catch (err) {
+            console.error('Failed to load connection requests:', err);
+        }
+    };
+
+    const loadConnectedUsers = async () => {
+        try {
+            const data = await getConnectedUsers();
+            setConnectedUsers(data);
+        } catch (err) {
+            console.error('Failed to load connected users:', err);
+        }
+    };
+
+    const isUserConnected = (userId) => {
+        return connectedUsers.some(user => user.id === userId);
     };
 
     const handleSearch = async () => {
@@ -72,10 +128,40 @@ function SearchCars() {
         setShowModal(true);
     };
 
-    const handleConnect = (userId) => {
-        // TODO: Implement connection logic (send message, add to connections, etc.)
-        alert(`Connection request sent to user ${userId}!`);
-        setShowModal(false);
+    const handleConnect = async (userId) => {
+        setSendingRequest(true);
+        try {
+            await sendConnectionRequest(userId);
+            setShowModal(false);
+            // Reload connection requests to update the sent list
+            await loadConnectionRequests();
+        } catch (err) {
+            console.error('Failed to send connection request:', err);
+            alert(err.message || 'Failed to send connection request');
+        } finally {
+            setSendingRequest(false);
+        }
+    };
+
+    const handleAcceptRequest = async (requestId) => {
+        try {
+            await acceptConnectionRequest(requestId);
+            await loadConnectionRequests();
+            await loadConnectedUsers();
+        } catch (err) {
+            console.error('Failed to accept request:', err);
+            alert(err.message || 'Failed to accept request');
+        }
+    };
+
+    const handleRejectRequest = async (requestId) => {
+        try {
+            await rejectConnectionRequest(requestId);
+            await loadConnectionRequests();
+        } catch (err) {
+            console.error('Failed to reject request:', err);
+            alert(err.message || 'Failed to reject request');
+        }
     };
 
     const getAvatarUrl = (profilePath) => {
@@ -88,10 +174,67 @@ function SearchCars() {
 
     return (
         <div className="search-page">
+            {/* Notification for new requests */}
+            {showNotification && (
+                <div className="notification-toast">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <span>You have {newRequestsCount} new connection request{newRequestsCount > 1 ? 's' : ''}!</span>
+                    <button 
+                        className="notification-view-btn"
+                        onClick={() => {
+                            setActiveTab('requests');
+                            setShowNotification(false);
+                        }}
+                    >
+                        View
+                    </button>
+                    <button 
+                        className="notification-close-btn"
+                        onClick={() => setShowNotification(false)}
+                        aria-label="Close notification"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+            
             <div className="search-container">
                 <h1 className="search-title">Find Your Carpool Match</h1>
                 
-                <div className="search-form">
+                {/* Tab Navigation */}
+                <div className="tabs">
+                    <button 
+                        className={`tab-btn ${activeTab === 'search' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('search')}
+                    >
+                        Search Carpools
+                    </button>
+                    <button 
+                        className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('requests')}
+                    >
+                        Connection Requests
+                        {connectionRequests.received.length > 0 && (
+                            <span className="badge">{connectionRequests.received.length}</span>
+                        )}
+                    </button>
+                    <button 
+                        className={`tab-btn ${activeTab === 'connected' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('connected')}
+                    >
+                        Connected Commuters
+                        {connectedUsers.length > 0 && (
+                            <span className="badge badge-success">{connectedUsers.length}</span>
+                        )}
+                    </button>
+                </div>
+
+                {/* Search Tab */}
+                {activeTab === 'search' && (
+                    <>
+                        <div className="search-form">
                     {currentUser && currentUser.companyAddress && (
                         <div className="current-address-display">
                             <h3>Your Office Location:</h3>
@@ -220,6 +363,15 @@ function SearchCars() {
                                         </div>
                                     )}
 
+                                    {isUserConnected(user.id) && (
+                                        <div className="connected-badge">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                            </svg>
+                                            <span>Connected</span>
+                                        </div>
+                                    )}
+
                                     <button 
                                         className="learn-more-btn"
                                         onClick={() => handleLearnMore(user)}
@@ -235,6 +387,207 @@ function SearchCars() {
                 {!loading && results.length === 0 && currentUser && (
                     <div className="no-results">
                         <p>No matches found. Try a different search type.</p>
+                    </div>
+                )}
+                    </>
+                )}
+
+                {/* Requests Tab */}
+                {activeTab === 'requests' && (
+                    <div className="requests-section">
+                        {/* Received Requests */}
+                        <div className="requests-group">
+                            <h2 className="requests-subtitle">Received Requests ({connectionRequests.received.length})</h2>
+                            {connectionRequests.received.length > 0 ? (
+                                <div className="requests-grid">
+                                    {connectionRequests.received.map((request) => (
+                                        <div key={request.id} className="request-card">
+                                            <div className="request-header">
+                                                {getAvatarUrl(request.sender.profilePath) ? (
+                                                    <img 
+                                                        src={getAvatarUrl(request.sender.profilePath)} 
+                                                        alt={`${request.sender.firstName} ${request.sender.lastName}`}
+                                                        className="request-avatar"
+                                                    />
+                                                ) : (
+                                                    <div className="request-avatar-placeholder">
+                                                        {request.sender.firstName[0]}{request.sender.lastName[0]}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <h3 className="request-name">
+                                                        {request.sender.firstName} {request.sender.lastName}
+                                                    </h3>
+                                                    <p className="request-role">{request.sender.role}</p>
+                                                </div>
+                                            </div>
+                                            {request.sender.companyAddress && (
+                                                <p className="request-location">
+                                                    📍 {request.sender.companyAddress.city}
+                                                </p>
+                                            )}
+                                            <p className="request-date">
+                                                Sent {new Date(request.createdAt).toLocaleDateString()}
+                                            </p>
+                                            <div className="request-actions">
+                                                <button 
+                                                    className="accept-btn"
+                                                    onClick={() => handleAcceptRequest(request.id)}
+                                                >
+                                                    Accept
+                                                </button>
+                                                <button 
+                                                    className="reject-btn"
+                                                    onClick={() => handleRejectRequest(request.id)}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="no-requests">No pending requests</p>
+                            )}
+                        </div>
+
+                        {/* Sent Requests */}
+                        <div className="requests-group">
+                            <h2 className="requests-subtitle">Sent Requests ({connectionRequests.sent.length})</h2>
+                            {connectionRequests.sent.length > 0 ? (
+                                <div className="requests-grid">
+                                    {connectionRequests.sent.map((request) => (
+                                        <div key={request.id} className="request-card">
+                                            <div className="request-header">
+                                                {getAvatarUrl(request.receiver.profilePath) ? (
+                                                    <img 
+                                                        src={getAvatarUrl(request.receiver.profilePath)} 
+                                                        alt={`${request.receiver.firstName} ${request.receiver.lastName}`}
+                                                        className="request-avatar"
+                                                    />
+                                                ) : (
+                                                    <div className="request-avatar-placeholder">
+                                                        {request.receiver.firstName[0]}{request.receiver.lastName[0]}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <h3 className="request-name">
+                                                        {request.receiver.firstName} {request.receiver.lastName}
+                                                    </h3>
+                                                    <p className="request-role">{request.receiver.role}</p>
+                                                </div>
+                                            </div>
+                                            {request.receiver.companyAddress && (
+                                                <p className="request-location">
+                                                    📍 {request.receiver.companyAddress.city}
+                                                </p>
+                                            )}
+                                            <p className="request-date">
+                                                Sent {new Date(request.createdAt).toLocaleDateString()}
+                                            </p>
+                                            <p className={`status-badge status-${request.status}`}>
+                                                {request.status === 'pending' && '⏳ Pending'}
+                                                {request.status === 'accepted' && '✅ Accepted'}
+                                                {request.status === 'rejected' && '❌ Rejected'}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="no-requests">No sent requests</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Connected Commuters Tab */}
+                {activeTab === 'connected' && (
+                    <div className="connected-section">
+                        <h2 className="connected-title">Connected Commuters ({connectedUsers.length})</h2>
+                        {connectedUsers.length > 0 ? (
+                            <div className="results-grid">
+                                {connectedUsers.map((user) => (
+                                    <div key={user.id} className="user-card">
+                                        <div className="user-avatar-container">
+                                            {getAvatarUrl(user.profilePath) ? (
+                                                <img 
+                                                    src={getAvatarUrl(user.profilePath)} 
+                                                    alt={`${user.firstName} ${user.lastName}`}
+                                                    className="user-avatar"
+                                                />
+                                            ) : (
+                                                <div className="user-avatar-placeholder">
+                                                    {user.firstName[0]}{user.lastName[0]}
+                                                </div>
+                                            )}
+                                            <div className={`role-icon ${user.role}`}>
+                                                {user.role === 'driver' ? (
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M5 11h14v5H5v-5zM19 17H5v2h14v-2zM4 6h16l-2 5H6L4 6z"/>
+                                                        <circle cx="7.5" cy="17.5" r="1.5"/>
+                                                        <circle cx="16.5" cy="17.5" r="1.5"/>
+                                                    </svg>
+                                                ) : (
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2h16z"/>
+                                                        <circle cx="12" cy="7" r="4"/>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <h3 className="user-name">
+                                            {user.firstName} {user.lastName}
+                                        </h3>
+
+                                        {user.companyAddress && (
+                                            <div className="address-info">
+                                                <div className="address-label">Office Location:</div>
+                                                {user.companyAddress.officeName && (
+                                                    <div className="address-line">{user.companyAddress.officeName}</div>
+                                                )}
+                                                {user.companyAddress.street && (
+                                                    <div className="address-line">{user.companyAddress.street}</div>
+                                                )}
+                                                <div className="address-line">
+                                                    {user.companyAddress.city}
+                                                    {user.companyAddress.zipcode && `, ${user.companyAddress.zipcode}`}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {user.email && (
+                                            <div className="contact-info">
+                                                <p>📧 {user.email}</p>
+                                                {user.phone && <p>📞 {user.phone}</p>}
+                                            </div>
+                                        )}
+
+                                        <div className="connected-actions">
+                                            <button 
+                                                className="message-btn"
+                                                onClick={() => navigate(`/messages/${user.id}`)}
+                                            >
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                                                </svg>
+                                                Message
+                                            </button>
+                                            <button 
+                                                className="learn-more-btn"
+                                                onClick={() => handleLearnMore(user)}
+                                            >
+                                                View Profile
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="no-results">
+                                <p>No connected commuters yet. Start searching and sending connection requests!</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -295,12 +648,38 @@ function SearchCars() {
                         </div>
 
                         <div className="modal-footer">
-                            <button 
-                                className="connect-btn"
-                                onClick={() => handleConnect(selectedUser.id)}
-                            >
-                                Connect
-                            </button>
+                            {isUserConnected(selectedUser.id) ? (
+                                <div style={{display: 'flex', gap: '10px', width: '100%'}}>
+                                    <button 
+                                        className="connected-btn"
+                                        disabled
+                                        title="You are already connected with this user"
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                        </svg>
+                                        Connected
+                                    </button>
+                                    <button 
+                                        className="message-btn"
+                                        onClick={() => navigate(`/messages/${selectedUser.id}`)}
+                                        title="Send a message"
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                                        </svg>
+                                        Message
+                                    </button>
+                                </div>
+                            ) : (
+                                <button 
+                                    className="connect-btn"
+                                    onClick={() => handleConnect(selectedUser.id)}
+                                    disabled={sendingRequest}
+                                >
+                                    {sendingRequest ? 'Sending...' : 'Connect'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

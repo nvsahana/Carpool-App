@@ -151,3 +151,199 @@ export async function searchCarpools(searchType) {
     
     return response.json()
 }
+
+/**
+ * Send a connection request to another user
+ * @param {number} receiverId - The ID of the user to send request to
+ * @returns {Promise<Object>} Created connection request
+ */
+export async function sendConnectionRequest(receiverId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const formData = new URLSearchParams()
+    formData.append('receiverId', receiverId)
+    
+    const response = await fetch(`${API_BASE}/connection-requests`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to send connection request')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get all connection requests for the current user
+ * @returns {Promise<{received: Array, sent: Array}>} Connection requests
+ */
+export async function getConnectionRequests() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/connection-requests`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch connection requests')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Accept a connection request
+ * @param {number} requestId - The ID of the connection request
+ * @returns {Promise<Object>} Updated connection request
+ */
+export async function acceptConnectionRequest(requestId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/connection-requests/${requestId}/accept`, {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to accept connection request')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Reject a connection request
+ * @param {number} requestId - The ID of the connection request
+ * @returns {Promise<Object>} Response message
+ */
+export async function rejectConnectionRequest(requestId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/connection-requests/${requestId}/reject`, {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to reject connection request')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get all connected users (accepted connections)
+ * @returns {Promise<Array>} Array of connected users
+ */
+export async function getConnectedUsers() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/connected-users`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch connected users')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get all conversations for the current user
+ * @returns {Promise<Array>} Array of conversations
+ */
+export async function getConversations() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/conversations`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch conversations')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get messages in a conversation
+ * @param {number} otherUserId - The ID of the other user
+ * @returns {Promise<Object>} Conversation with messages
+ */
+export async function getMessages(otherUserId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/conversations/${otherUserId}/messages`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch messages')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Send a message to another user
+ * @param {number} otherUserId - The ID of the user to message
+ * @param {string} content - Message content
+ * @returns {Promise<Object>} Created message
+ */
+export async function sendMessage(otherUserId, content) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const formData = new URLSearchParams()
+    formData.append('content', content)
+    
+    const response = await fetch(`${API_BASE}/conversations/${otherUserId}/messages`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to send message')
+    }
+    
+    return response.json()
+}

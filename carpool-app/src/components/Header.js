@@ -38,7 +38,11 @@ function Header() {
                         >
                             Profile
                         </Link>
+                        
                     )}
+                    <Link to="/messages" className="nav-link">
+                        Messages
+                    </Link>
                 </nav>
             </div>
         </header>
