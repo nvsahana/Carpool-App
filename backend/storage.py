@@ -3,6 +3,7 @@ Storage abstraction layer for handling file uploads to local disk or AWS S3
 """
 import os
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from typing import Optional
 
@@ -17,12 +18,19 @@ class StorageService:
             # Support for Cloudflare R2 and other S3-compatible services
             endpoint_url = os.getenv("R2_ENDPOINT") or os.getenv("B2_ENDPOINT")
             
+            # R2 requires signature v4
+            config = Config(
+                signature_version='s3v4',
+                s3={'addressing_style': 'path'}
+            )
+            
             self.s3_client = boto3.client(
                 's3',
                 endpoint_url=endpoint_url,  # None for AWS S3, custom for R2/B2
                 aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
                 aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=os.getenv("AWS_REGION", "us-east-1")
+                region_name=os.getenv("AWS_REGION", "auto"),
+                config=config
             )
             self.bucket_name = os.getenv("AWS_S3_BUCKET")
         else:
