@@ -1,8 +1,18 @@
 
 import os
 from dotenv import load_dotenv
-# override=False ensures Render's environment variables take precedence over .env file
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
+
+# Only load .env file in local development, not on Render
+if not os.getenv("RENDER"):
+    load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+# Debug: Print DATABASE_URL (masked) to verify it's set correctly
+db_url = os.getenv("DATABASE_URL", "NOT_SET")
+if db_url != "NOT_SET":
+    # Mask the password in logs
+    print(f"[DEBUG] DATABASE_URL starts with: {db_url[:30]}...")
+else:
+    print("[ERROR] DATABASE_URL is not set!")
 
 from typing import List, Optional
 from datetime import datetime, timedelta
