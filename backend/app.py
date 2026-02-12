@@ -1,7 +1,8 @@
 
 import os
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+# override=False ensures Render's environment variables take precedence over .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 from typing import List, Optional
 from datetime import datetime, timedelta
