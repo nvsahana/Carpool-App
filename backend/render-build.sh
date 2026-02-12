@@ -4,6 +4,9 @@ set -o errexit
 pip install -r requirements.txt
 python3 -m prisma generate
 
+# Run database migrations
+python3 -m prisma db push --accept-data-loss
+
 # Copy Prisma binary from build cache to runtime directory
 PRISMA_CACHE_SRC="$XDG_CACHE_HOME/prisma-python/binaries"
 PRISMA_CACHE_DEST="/opt/render/project/src/prisma-binaries"

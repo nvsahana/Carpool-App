@@ -1,8 +1,26 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { getUnreadCount } from '../Routes/api';
 import './Header.css';
 
 function Header() {
     const location = useLocation();
+    const [unreadCount, setUnreadCount] = useState(0);
+    
+    useEffect(() => {
+        const fetchUnreadCount = async () => {
+            if (localStorage.getItem('access_token')) {
+                const count = await getUnreadCount();
+                setUnreadCount(count);
+            }
+        };
+        
+        fetchUnreadCount();
+        
+        // Poll for new messages every 10 seconds
+        const interval = setInterval(fetchUnreadCount, 10000);
+        return () => clearInterval(interval);
+    }, [location.pathname]); // Re-fetch when page changes
     
     return (
         <header className="header">
@@ -40,8 +58,11 @@ function Header() {
                         </Link>
                         
                     )}
-                    <Link to="/messages" className="nav-link">
+                    <Link to="/messages" className={`nav-link ${location.pathname.startsWith('/messages') ? 'active' : ''}`}>
                         Messages
+                        {unreadCount > 0 && (
+                            <span className="unread-count-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
                     </Link>
                 </nav>
             </div>

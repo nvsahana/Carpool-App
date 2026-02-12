@@ -1,6 +1,6 @@
 .home-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #0d0d0d;
     position: relative;
     overflow: hidden;
     display: flex;
@@ -727,13 +727,13 @@
     padding: 1.2rem 3rem;
     font-size: 1.3rem;
     font-weight: 700;
-    color: #667eea;
-    background: #ffffff;
+    color: #ffffff;
+    background: #3498db;
     border-radius: 50px;
     text-decoration: none;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     transition: all 0.3s ease;
-    animation: fadeInUp 1s ease-out 1.2s backwards, pulse 2s ease-in-out 2s infinite;
+    animation: fadeInUp 1s ease-out 1.2s backwards;
     position: relative;
     overflow: hidden;
 }
@@ -746,7 +746,7 @@
     width: 0;
     height: 0;
     border-radius: 50%;
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(255, 255, 255, 0.1);
     transform: translate(-50%, -50%);
     transition: width 0.6s ease, height 0.6s ease;
 }
@@ -758,7 +758,7 @@
 
 .cta-button:hover {
     transform: translateY(-5px) scale(1.05);
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 15px 40px rgba(52, 152, 219, 0.5);
 }
 
 .cta-button span {
@@ -991,7 +991,7 @@
     left: 0;
     right: 0;
     height: 5px;
-    background: linear-gradient(90deg, #3498db, #2ecc71, #f39c12, #e74c3c);
+    background: linear-gradient(90deg, #3498db, #2ecc71, #f39c12, #9b59b6);
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -1048,7 +1048,7 @@
     align-items: center;
     gap: 1rem;
     padding: 1.2rem 3rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #3498db;
     color: white;
     text-decoration: none;
     font-size: 1.2rem;
@@ -1056,7 +1056,7 @@
     border-radius: 50px;
     margin: 3rem auto;
     transition: all 0.3s ease;
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 10px 30px rgba(52, 152, 219, 0.4);
     position: relative;
     overflow: hidden;
     animation: fadeInUp 1s ease-out 0.6s backwards;
@@ -1079,7 +1079,7 @@
 
 .cta-button-new:hover {
     transform: translateY(-3px) scale(1.05);
-    box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+    box-shadow: 0 15px 40px rgba(204, 16, 22, 0.5);
 }
 
 .cta-icon {
@@ -1380,10 +1380,10 @@
 
 .premium-card:hover .card-number {
     transform: scale(1.2) rotate(360deg);
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.4), rgba(118, 75, 162, 0.4));
+    background: rgba(204, 16, 22, 0.4);
     color: rgba(255, 255, 255, 1);
     border-color: rgba(255, 255, 255, 0.6);
-    box-shadow: 0 0 20px rgba(102, 126, 234, 0.6);
+    box-shadow: 0 0 20px rgba(204, 16, 22, 0.6);
 }
 
 /* Responsive Design */

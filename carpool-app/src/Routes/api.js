@@ -1,6 +1,7 @@
 // Backend API client
 
-export const API_BASE = 'http://127.0.0.1:8000'  // FastAPI backend URL
+// Use environment variable in production, fallback to localhost for development
+export const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'  // FastAPI backend URL
 
 /**
  * Sign up a new user with profile picture and address details
@@ -346,4 +347,21 @@ export async function sendMessage(otherUserId, content) {
     }
     
     return response.json()
+}
+
+/**
+ * Get total unread message count for the current user
+ * @returns {Promise<number>} Total unread message count
+ */
+export async function getUnreadCount() {
+    const token = localStorage.getItem('access_token')
+    if (!token) return 0
+    
+    try {
+        const conversations = await getConversations()
+        return conversations.reduce((total, conv) => total + (conv.unreadCount || 0), 0)
+    } catch (err) {
+        console.error('Failed to get unread count:', err)
+        return 0
+    }
 }

@@ -19,15 +19,9 @@ function AboutUs() {
                     <div className="card-shine"></div>
                     <div className="about-icon-wrapper">
                         <svg className="about-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="missionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ffffff"/>
-                                    <stop offset="100%" stopColor="#e0e0e0"/>
-                                </linearGradient>
-                            </defs>
-                            <circle cx="50" cy="50" r="35" stroke="url(#missionGradient)" strokeWidth="4" fill="none"/>
-                            <path d="M 50 20 L 50 50 L 70 65" stroke="url(#missionGradient)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-                            <circle cx="50" cy="50" r="5" fill="url(#missionGradient)"/>
+                            <circle cx="50" cy="50" r="35" stroke="#000" strokeWidth="4" fill="none"/>
+                            <path d="M 50 20 L 50 50 L 70 65" stroke="#000" strokeWidth="4" strokeLinecap="round" fill="none"/>
+                            <circle cx="50" cy="50" r="5" fill="#000"/>
                         </svg>
                     </div>
                     <h2 className="card-title">The Problem I'm Solving</h2>
@@ -48,17 +42,11 @@ function AboutUs() {
                     <div className="card-shine"></div>
                     <div className="about-icon-wrapper">
                         <svg className="about-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="solutionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ffffff"/>
-                                    <stop offset="100%" stopColor="#e5e5e5"/>
-                                </linearGradient>
-                            </defs>
                             <path d="M 30 70 L 30 50 Q 30 35 45 35 L 55 35 Q 70 35 70 50 L 70 70" 
-                                  stroke="url(#solutionGradient)" strokeWidth="4" fill="none" strokeLinecap="round"/>
-                            <circle cx="40" cy="25" r="8" fill="url(#solutionGradient)"/>
-                            <circle cx="60" cy="25" r="8" fill="url(#solutionGradient)"/>
-                            <path d="M 25 75 L 75 75" stroke="url(#solutionGradient)" strokeWidth="5" strokeLinecap="round"/>
+                                  stroke="#000" strokeWidth="4" fill="none" strokeLinecap="round"/>
+                            <circle cx="40" cy="25" r="8" fill="#000"/>
+                            <circle cx="60" cy="25" r="8" fill="#000"/>
+                            <path d="M 25 75 L 75 75" stroke="#000" strokeWidth="5" strokeLinecap="round"/>
                         </svg>
                     </div>
                     <h2 className="card-title">My Solution</h2>
@@ -108,18 +96,12 @@ function AboutUs() {
                     <div className="card-shine"></div>
                     <div className="about-icon-wrapper">
                         <svg className="about-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="creatorGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ffffff"/>
-                                    <stop offset="100%" stopColor="#ebebeb"/>
-                                </linearGradient>
-                            </defs>
-                            <circle cx="50" cy="35" r="18" fill="url(#creatorGradient)"/>
-                            <path d="M 25 70 Q 50 55 75 70 L 75 85 L 25 85 Z" fill="url(#creatorGradient)"/>
-                            <rect x="35" y="52" width="30" height="3" fill="url(#creatorGradient)" rx="1.5"/>
-                            <circle cx="45" cy="35" r="3" fill="rgba(102, 126, 234, 0.8)"/>
-                            <circle cx="55" cy="35" r="3" fill="rgba(102, 126, 234, 0.8)"/>
-                            <path d="M 43 42 Q 50 45 57 42" stroke="rgba(102, 126, 234, 0.8)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                            <circle cx="50" cy="35" r="18" fill="#000"/>
+                            <path d="M 25 70 Q 50 55 75 70 L 75 85 L 25 85 Z" fill="#000"/>
+                            <rect x="35" y="52" width="30" height="3" fill="#000" rx="1.5"/>
+                            <circle cx="45" cy="35" r="3" fill="#f6f6f6"/>
+                            <circle cx="55" cy="35" r="3" fill="#f6f6f6"/>
+                            <path d="M 43 42 Q 50 45 57 42" stroke="#f6f6f6" strokeWidth="2" fill="none" strokeLinecap="round"/>
                         </svg>
                     </div>
                     <h2 className="card-title">Meet the Creator</h2>
@@ -160,15 +142,9 @@ function AboutUs() {
                     <div className="card-shine"></div>
                     <div className="about-icon-wrapper">
                         <svg className="about-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="visionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ffffff"/>
-                                    <stop offset="100%" stopColor="#e8e8e8"/>
-                                </linearGradient>
-                            </defs>
                             <polygon points="50,20 65,40 85,45 67,62 71,82 50,71 29,82 33,62 15,45 35,40" 
-                                     fill="url(#visionGradient)"/>
-                            <circle cx="50" cy="50" r="12" fill="rgba(102, 126, 234, 0.3)"/>
+                                     fill="#000"/>
+                            <circle cx="50" cy="50" r="12" fill="#f6f6f6"/>
                         </svg>
                     </div>
                     <h2 className="card-title">My Vision</h2>

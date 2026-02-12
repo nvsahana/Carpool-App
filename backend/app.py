@@ -37,7 +37,12 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.add_middleware(
     CORSMiddleware,
     # Allow both localhost forms that browsers may use during development
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        # Add your deployed frontend URLs here
+        os.getenv("FRONTEND_URL", ""),
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
