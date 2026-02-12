@@ -761,19 +761,21 @@ async def get_conversations(request: Request):
                 "include": {
                     "companyAddress": True
                 }
-            },
-            "messages": {
-                "take": 1,
-                "order_by": {"createdAt": "desc"}
             }
         },
-        order_by={"updatedAt": "desc"}
+        order={"updatedAt": "desc"}
     )
     
     result = []
     for conv in conversations:
         # Determine the other user
         other_user = conv.user2 if conv.user1Id == user_id else conv.user1
+        
+        # Get the last message for this conversation
+        last_message = await db.message.find_first(
+            where={"conversationId": conv.id},
+            order={"createdAt": "desc"}
+        )
         
         # Count unread messages from other user
         unread_count = await db.message.count(
@@ -797,10 +799,10 @@ async def get_conversations(request: Request):
                 } if other_user.companyAddress else None
             },
             "lastMessage": {
-                "content": conv.messages[0].content if conv.messages else None,
-                "createdAt": conv.messages[0].createdAt.isoformat() if conv.messages else None,
-                "senderId": conv.messages[0].senderId if conv.messages else None
-            } if conv.messages else None,
+                "content": last_message.content,
+                "createdAt": last_message.createdAt.isoformat(),
+                "senderId": last_message.senderId
+            } if last_message else None,
             "unreadCount": unread_count,
             "updatedAt": conv.updatedAt.isoformat()
         })
@@ -843,7 +845,7 @@ async def get_messages(
     # Get messages
     messages = await db.message.find_many(
         where={"conversationId": conversation.id},
-        order_by={"createdAt": "asc"}
+        order={"createdAt": "asc"}
     )
     
     # Mark messages from other user as read

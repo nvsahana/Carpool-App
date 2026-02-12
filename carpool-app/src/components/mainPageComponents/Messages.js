@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getCurrentUser, getConversations, getMessages, sendMessage, getProfileImageUrl } from '../../Routes/api';
+import { getCurrentUser, getConversations, getMessages, sendMessage, getProfileImageUrl, getConnectedUsers } from '../../Routes/api';
 import './Messages.css';
 
 function Messages() {
@@ -14,6 +14,8 @@ function Messages() {
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
     const messagesEndRef = useRef(null);
+    const messagesListRef = useRef(null);
+    const inputRef = useRef(null);
 
     useEffect(() => {
         const token = localStorage.getItem('access_token');
@@ -51,7 +53,19 @@ function Messages() {
     }, [selectedConversation]);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messagesListRef.current) {
+            messagesListRef.current.scrollTop = messagesListRef.current.scrollHeight;
+        }
+    };
+
+    const handleInputFocus = (e) => {
+        // Prevent any scroll behavior on focus
+        e.preventDefault();
+        const scrollY = window.scrollY;
+        const scrollX = window.scrollX;
+        setTimeout(() => {
+            window.scrollTo(scrollX, scrollY);
+        }, 0);
     };
 
     const loadConversations = async () => {
@@ -60,10 +74,31 @@ function Messages() {
             setConversations(data);
             
             // Auto-select conversation if userId is provided in URL
-            if (userId && data.length > 0) {
+            if (userId) {
                 const targetConv = data.find(conv => conv.otherUser.id === parseInt(userId));
                 if (targetConv) {
                     await handleSelectConversation(targetConv);
+                } else {
+                    // No existing conversation - check if user is connected
+                    // Create a new conversation placeholder
+                    try {
+                        const connectedUsers = await getConnectedUsers();
+                        const targetUser = connectedUsers.find(user => user.id === parseInt(userId));
+                        if (targetUser) {
+                            // Create a temporary conversation object for the new chat
+                            const newConversation = {
+                                id: `new-${userId}`,
+                                otherUser: targetUser,
+                                lastMessage: null,
+                                unreadCount: 0,
+                                isNew: true
+                            };
+                            setSelectedConversation(newConversation);
+                            setMessages([]);
+                        }
+                    } catch (err) {
+                        console.error('Failed to load connected users:', err);
+                    }
                 }
             }
         } catch (err) {
@@ -98,7 +133,20 @@ function Messages() {
             await sendMessage(selectedConversation.otherUser.id, newMessage);
             setNewMessage('');
             await loadMessages(selectedConversation.otherUser.id, true);
-            await loadConversations(); // Update conversation list
+            
+            // Reload conversations to update the list (especially important for new conversations)
+            const updatedConversations = await getConversations();
+            setConversations(updatedConversations);
+            
+            // If this was a new conversation, update selectedConversation to use the real one
+            if (selectedConversation.isNew) {
+                const realConv = updatedConversations.find(
+                    conv => conv.otherUser.id === selectedConversation.otherUser.id
+                );
+                if (realConv) {
+                    setSelectedConversation(realConv);
+                }
+            }
         } catch (err) {
             console.error('Failed to send message:', err);
             alert(err.message);
@@ -225,7 +273,7 @@ function Messages() {
                             </div>
 
                             {/* Messages List */}
-                            <div className="messages-list">
+                            <div className="messages-list" ref={messagesListRef}>
                                 {loading ? (
                                     <div className="messages-loading">Loading messages...</div>
                                 ) : messages.length > 0 ? (
@@ -254,11 +302,13 @@ function Messages() {
                             {/* Message Input */}
                             <form className="message-input-container" onSubmit={handleSendMessage}>
                                 <input
+                                    ref={inputRef}
                                     type="text"
                                     className="message-input"
                                     placeholder="Type a message..."
                                     value={newMessage}
                                     onChange={(e) => setNewMessage(e.target.value)}
+                                    onFocus={handleInputFocus}
                                     disabled={sending}
                                 />
                                 <button 

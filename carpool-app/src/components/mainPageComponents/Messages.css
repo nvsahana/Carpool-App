@@ -1,15 +1,17 @@
 .messages-page {
-    min-height: 100vh;
+    height: calc(100vh - 140px);
     padding: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .messages-container {
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 0 auto;
-    height: calc(100vh - 40px);
+    height: 100%;
     display: grid;
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 300px 1fr;
     background: white;
     border-radius: 20px;
     overflow: hidden;
@@ -20,7 +22,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100vh;
+    height: 100%;
     color: white;
     font-size: 1.2rem;
 }
@@ -34,17 +36,18 @@
 }
 
 .sidebar-header {
-    padding: 20px;
+    padding: 16px;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     background: white;
+    flex-shrink: 0;
 }
 
 .sidebar-header h2 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     color: #2d3748;
 }
 
@@ -66,13 +69,14 @@
 .conversations-list {
     flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .conversation-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 16px 20px;
+    padding: 14px 16px;
     cursor: pointer;
     transition: background 0.2s ease;
     border-bottom: 1px solid #e2e8f0;
@@ -93,8 +97,8 @@
 }
 
 .conv-avatar, .conv-avatar-placeholder {
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     border-radius: 50%;
     object-fit: cover;
 }
@@ -106,7 +110,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 
 .unread-badge {
@@ -116,8 +120,8 @@
     background: #ff4757;
     color: white;
     border-radius: 50%;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -135,13 +139,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .conv-name {
     font-weight: 600;
     color: #2d3748;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 .conv-time {
@@ -152,7 +156,7 @@
 .conv-preview {
     margin: 0;
     color: #718096;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -178,12 +182,14 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    overflow: hidden;
 }
 
 .chat-header {
-    padding: 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid #e2e8f0;
     background: white;
+    flex-shrink: 0;
 }
 
 .chat-user-info {
@@ -193,8 +199,8 @@
 }
 
 .chat-avatar, .chat-avatar-placeholder {
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     border-radius: 50%;
     object-fit: cover;
 }
@@ -206,33 +212,35 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 
 .chat-user-info h3 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: #2d3748;
 }
 
 .user-role {
     margin: 4px 0 0 0;
     color: #718096;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     text-transform: capitalize;
 }
 
 .messages-list {
     flex: 1;
     overflow-y: auto;
+    overflow-anchor: none;
     padding: 20px;
     background: #f7fafc;
+    min-height: 0;
 }
 
 .message {
     display: flex;
     flex-direction: column;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     max-width: 70%;
 }
 
@@ -305,11 +313,12 @@
 
 /* Message Input */
 .message-input-container {
-    padding: 20px;
+    padding: 16px 20px;
     border-top: 1px solid #e2e8f0;
     background: white;
     display: flex;
     gap: 12px;
+    flex-shrink: 0;
 }
 
 .message-input {
@@ -339,6 +348,7 @@
     justify-content: center;
     transition: transform 0.2s ease;
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
