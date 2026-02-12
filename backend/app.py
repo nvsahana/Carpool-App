@@ -51,8 +51,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
-        # Add your deployed frontend URLs here
-        os.getenv("FRONTEND_URL", ""),
+        # Deployed frontend URL
+        "https://carpoolconnect.netlify.app",
+        os.getenv("FRONTEND_URL", "https://carpoolconnect.netlify.app"),
     ],
     allow_credentials=True,
     allow_methods=["*"],
