@@ -38,23 +38,24 @@ class StorageService:
     
     async def save_file(self, file_content: bytes, filename: str) -> str:
         """
-        Save file to S3/R2/B2 and return the path/URL. Local storage is disabled.
+        Save file to S3/R2/B2 with fallback to local storage
         """
-        # Only allow S3/R2/B2 storage
         if self.storage_type == "s3":
             try:
                 return await self._save_to_s3(file_content, filename)
             except Exception as e:
-                print(f"[ERROR] Failed to upload to cloud storage: {e}")
-                raise
+                print(f"[WARNING] S3 upload failed, falling back to local: {e}")
+                return self._save_to_local(file_content, filename)
         else:
-            print("[ERROR] Local storage is disabled. Set STORAGE_TYPE=s3 in your .env file.")
-            raise Exception("Local storage is disabled. Set STORAGE_TYPE=s3 in your .env file.")
+            return self._save_to_local(file_content, filename)
     
-    # def _save_to_local(self, file_content: bytes, filename: str) -> str:
-    #     """Save file to local disk (DISABLED)"""
-    #     print("[INFO] Local storage is disabled. All files must be saved to cloud storage.")
-    #     return None
+    def _save_to_local(self, file_content: bytes, filename: str) -> str:
+        """Save file to local disk"""
+        os.makedirs(self.upload_dir, exist_ok=True)
+        file_path = os.path.join(self.upload_dir, filename)
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+        return f"/uploads/{filename}"
     
     async def _save_to_s3(self, file_content: bytes, filename: str) -> str:
         """Upload file to S3/R2/B2 and return a presigned URL"""
