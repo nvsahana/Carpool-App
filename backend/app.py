@@ -447,12 +447,16 @@ async def search_carpools(
                 top_results = results[:6]
                 for r in top_results:
                     del r["_score"]
-                return top_results
+                
+                # If PostGIS returned results, use them; otherwise fall through to string matching
+                if top_results:
+                    return top_results
+                # Fall through - PostGIS worked but no geocoded users found
                 
             except Exception as e:
                 # PostGIS not available - fall back to string matching
                 error_str = str(e).lower()
-                if "st_dwithin" not in error_str and "postgis" not in error_str:
+                if "st_dwithin" not in error_str and "postgis" not in error_str and "location" not in error_str:
                     raise  # Re-raise if it's not a PostGIS error
                 # Fall through to string matching below
         
