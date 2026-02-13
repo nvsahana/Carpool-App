@@ -373,6 +373,15 @@ function SearchCars() {
                                         </div>
                                     )}
 
+                                    {user.matchScore && user.matchScore.workDistanceMiles !== undefined && user.matchScore.workDistanceMiles !== null && (
+                                        <div className="match-badge match-badge-distance">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
+                                            </svg>
+                                            <span>{user.matchScore.workDistanceMiles} mi from your work</span>
+                                        </div>
+                                    )}
+
                                     {user.matchScore && user.matchScore.sameHomeCity && (
                                         <div className="match-badge">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

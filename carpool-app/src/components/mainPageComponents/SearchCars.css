@@ -336,6 +336,11 @@
     color: #E65100;
 }
 
+.match-badge-distance {
+    background: #F3E5F5;
+    color: #7B1FA2;
+}
+
 .match-badge svg { flex-shrink: 0; }
 
 .learn-more-btn {
