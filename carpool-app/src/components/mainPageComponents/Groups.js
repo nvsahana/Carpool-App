@@ -41,6 +41,7 @@ function Groups() {
     const fetchOpenGroups = useCallback(async () => {
         try {
             const result = await searchOpenGroups(maxDetour);
+            console.log('Search groups result:', result); // Debug
             setOpenGroups(result.groups || []);
         } catch (err) {
             console.error('Failed to fetch open groups:', err);

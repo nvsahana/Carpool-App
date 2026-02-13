@@ -1469,6 +1469,7 @@ async def search_open_groups(
     """
     Search for open carpool groups where user's home is "on the way".
     Uses PostGIS to calculate if pickup adds acceptable detour.
+    Falls back to city/office matching if geospatial not available.
     """
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     if not auth or not auth.lower().startswith("bearer "):
@@ -1488,90 +1489,95 @@ async def search_open_groups(
     if not user or not user.homeAddress:
         raise HTTPException(status_code=400, detail="Please set your home address first")
     
-    if not user.homeAddress.latitude or not user.homeAddress.longitude:
-        raise HTTPException(status_code=400, detail="Your home address could not be geocoded")
-    
     # Check if user already in a group
     existing_membership = await db.groupmember.find_first(
         where={"userId": user_id}
     )
     
-    try:
-        # Use PostGIS to find groups where user is "on the way"
-        groups = await db.query_raw(
-            '''
-            SELECT 
-                g.id,
-                g.name,
-                g."maxSeats",
-                g."currentOccupancy",
-                g."baseDistanceMiles",
-                u.id as driver_id,
-                u."firstName" as driver_first_name,
-                u."lastName" as driver_last_name,
-                u."profilePath" as driver_profile,
-                ca.city as dest_city,
-                ca."officeName" as dest_office,
-                calculate_detour_miles(
-                    g."originLng", g."originLat",
-                    g."destLng", g."destLat",
-                    $1, $2
-                ) as detour_miles
-            FROM "CarpoolGroup" g
-            JOIN "User" u ON u.id = g."driverId"
-            LEFT JOIN "CompanyAddress" ca ON ca."userId" = g."driverId"
-            WHERE g.status = 'OPEN'
-              AND g."currentOccupancy" < g."maxSeats"
-              AND g."originLat" IS NOT NULL
-              AND g."destLat" IS NOT NULL
-              AND is_on_the_way(
-                  g."originLng", g."originLat",
-                  g."destLng", g."destLat",
-                  $1, $2,
-                  $3
-              )
-            ORDER BY detour_miles ASC
-            LIMIT 10
-            ''',
-            user.homeAddress.longitude,
-            user.homeAddress.latitude,
-            max_detour_miles
-        )
-        
-        return {
-            "searchType": "groups",
-            "maxDetourMiles": max_detour_miles,
-            "alreadyInGroup": existing_membership is not None,
-            "groups": [
-                {
-                    "id": g["id"],
-                    "name": g["name"],
-                    "driver": {
-                        "id": g["driver_id"],
-                        "firstName": g["driver_first_name"],
-                        "lastName": g["driver_last_name"],
-                        "profilePath": g["driver_profile"]
-                    },
-                    "destination": {
-                        "city": g["dest_city"],
-                        "officeName": g["dest_office"]
-                    },
-                    "maxSeats": g["maxSeats"],
-                    "currentOccupancy": g["currentOccupancy"],
-                    "availableSeats": g["maxSeats"] - g["currentOccupancy"],
-                    "detourMiles": round(g["detour_miles"], 1) if g["detour_miles"] else None,
-                    "detourText": f"{round(g['detour_miles'], 1)} mi off route" if g["detour_miles"] else None
+    # Only try PostGIS if user has geocoded coordinates
+    use_postgis = (user.homeAddress.latitude and user.homeAddress.longitude)
+    
+    if use_postgis:
+        try:
+            # Use PostGIS to find groups where user is "on the way"
+            groups = await db.query_raw(
+                '''
+                SELECT 
+                    g.id,
+                    g.name,
+                    g."maxSeats",
+                    g."currentOccupancy",
+                    g."baseDistanceMiles",
+                    u.id as driver_id,
+                    u."firstName" as driver_first_name,
+                    u."lastName" as driver_last_name,
+                    u."profilePath" as driver_profile,
+                    ca.city as dest_city,
+                    ca."officeName" as dest_office,
+                    calculate_detour_miles(
+                        g."originLng", g."originLat",
+                        g."destLng", g."destLat",
+                        $1, $2
+                    ) as detour_miles
+                FROM "CarpoolGroup" g
+                JOIN "User" u ON u.id = g."driverId"
+                LEFT JOIN "CompanyAddress" ca ON ca."userId" = g."driverId"
+                WHERE g.status = 'OPEN'
+                  AND g."currentOccupancy" < g."maxSeats"
+                  AND g."driverId" != $3
+                  AND g."originLat" IS NOT NULL
+                  AND g."destLat" IS NOT NULL
+                  AND is_on_the_way(
+                      g."originLng", g."originLat",
+                      g."destLng", g."destLat",
+                      $1, $2,
+                      $4
+                  )
+                ORDER BY detour_miles ASC
+                LIMIT 10
+                ''',
+                user.homeAddress.longitude,
+                user.homeAddress.latitude,
+                user_id,
+                max_detour_miles
+            )
+            
+            if groups:
+                return {
+                    "searchType": "geospatial",
+                    "maxDetourMiles": max_detour_miles,
+                    "alreadyInGroup": existing_membership is not None,
+                    "groups": [
+                        {
+                            "id": g["id"],
+                            "name": g["name"],
+                            "driver": {
+                                "id": g["driver_id"],
+                                "firstName": g["driver_first_name"],
+                                "lastName": g["driver_last_name"],
+                                "profilePath": g["driver_profile"]
+                            },
+                            "destination": {
+                                "city": g["dest_city"],
+                                "officeName": g["dest_office"]
+                            },
+                            "maxSeats": g["maxSeats"],
+                            "currentOccupancy": g["currentOccupancy"],
+                            "availableSeats": g["maxSeats"] - g["currentOccupancy"],
+                            "detourMiles": round(g["detour_miles"], 1) if g["detour_miles"] else None,
+                            "detourText": f"{round(g['detour_miles'], 1)} mi off route" if g["detour_miles"] else None
+                        }
+                        for g in groups
+                    ]
                 }
-                for g in groups
-            ]
-        }
-        
-    except Exception as e:
-        # PostGIS not available - fall through to fallback
-        error_str = str(e).lower()
-        if "calculate_detour_miles" not in error_str and "is_on_the_way" not in error_str and "function" not in error_str:
-            raise HTTPException(status_code=500, detail=str(e))
-        # Fall through to fallback below
+            # If PostGIS returned empty, fall through to fallback
+                
+        except Exception as e:
+            # PostGIS not available - fall through to fallback
+            error_str = str(e).lower()
+            if "calculate_detour_miles" not in error_str and "is_on_the_way" not in error_str and "function" not in error_str:
+                raise HTTPException(status_code=500, detail=str(e))
+            # Fall through to fallback below
     
     # Fallback: Find groups by matching city/office when PostGIS unavailable
     # This finds groups where driver works at same office or lives in same city
@@ -1651,11 +1657,21 @@ async def search_open_groups(
     for g in result_groups:
         del g["_score"]
     
+    # Debug info to help diagnose matching issues
+    debug_info = {
+        "userCompanyCity": user.companyAddress.city if user.companyAddress else None,
+        "userOfficeName": user.companyAddress.officeName if user.companyAddress else None,
+        "userHomeCity": user.homeAddress.city if user.homeAddress else None,
+        "totalOpenGroups": len(fallback_groups),
+        "matchedGroups": len(result_groups)
+    }
+    
     return {
         "searchType": "groups_fallback",
         "maxDetourMiles": max_detour_miles,
         "alreadyInGroup": existing_membership is not None,
-        "note": "Showing groups by city/office match (geospatial search unavailable)",
+        "note": "Showing groups by city/office match",
+        "debug": debug_info,
         "groups": result_groups
     }
 
