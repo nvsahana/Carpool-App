@@ -43,6 +43,9 @@ model CompanyAddress {
   street     String?
   city       String?
   zipcode    String?
+  // Geospatial coordinates for PostGIS queries
+  latitude  Float?
+  longitude Float?
 
   user   User @relation("CompanyAddressUser", fields: [userId], references: [id])
   userId Int  @unique
@@ -53,6 +56,9 @@ model HomeAddress {
   street String?
   city   String?
   zipcode String?
+  // Geospatial coordinates for PostGIS queries
+  latitude  Float?
+  longitude Float?
 
   user   User @relation("HomeAddressUser", fields: [userId], references: [id])
   userId Int  @unique

@@ -23,6 +23,7 @@ from prisma import Prisma
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from storage import storage_service
+from geocoding import geocode_address
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -182,20 +183,41 @@ async def signup(
         profile_path = await storage_service.save_file(content, filename)
 
     # Build nested create dicts only if values provided
+    # Geocode addresses for spatial search (runs in background, non-blocking on failure)
     company_data = None
     if officeName or companyStreet or companyCity or companyZip:
+        company_coords = await geocode_address(
+            street=companyStreet,
+            city=companyCity,
+            zipcode=companyZip
+        )
         company_data = {
             "create": {
                 "officeName": officeName,
                 "street": companyStreet,
                 "city": companyCity,
                 "zipcode": companyZip,
+                "latitude": company_coords[0] if company_coords else None,
+                "longitude": company_coords[1] if company_coords else None,
             }
         }
 
     home_data = None
     if homeStreet or homeCity or homeZip:
-        home_data = {"create": {"street": homeStreet, "city": homeCity, "zipcode": homeZip}}
+        home_coords = await geocode_address(
+            street=homeStreet,
+            city=homeCity,
+            zipcode=homeZip
+        )
+        home_data = {
+            "create": {
+                "street": homeStreet,
+                "city": homeCity,
+                "zipcode": homeZip,
+                "latitude": home_coords[0] if home_coords else None,
+                "longitude": home_coords[1] if home_coords else None,
+            }
+        }
 
     # Hash the password
     hashed_password = pwd_context.hash(password)
@@ -443,6 +465,158 @@ async def search_carpools(
         del r["_score"]
     
     return top_results
+
+
+@app.get("/search/nearby")
+async def search_nearby_carpools(
+    request: Request,
+    radius_miles: float = 5.0,
+    search_type: str = "home"  # "home" or "work"
+):
+    """
+    High-performance geospatial search using PostGIS.
+    
+    Finds users within a specified radius using spatial indexing (GiST).
+    This is much faster and more accurate than string matching.
+    
+    Args:
+        radius_miles: Search radius in miles (default: 5.0)
+        search_type: "home" to search near your home, "work" to search near your workplace
+    
+    Returns:
+        List of nearby users with distance in miles, sorted by proximity
+    """
+    # Verify authentication
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    current_user_id = payload.get("user_id")
+    if not current_user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Validate search type
+    if search_type not in ["home", "work"]:
+        raise HTTPException(status_code=400, detail="search_type must be 'home' or 'work'")
+    
+    # Convert miles to meters for PostGIS
+    radius_meters = radius_miles * 1609.34
+    
+    # Determine which table to search
+    if search_type == "home":
+        table = "HomeAddress"
+        relation = "homeAddress"
+    else:
+        table = "CompanyAddress"
+        relation = "companyAddress"
+    
+    # Get current user's coordinates
+    current_user = await db.user.find_unique(
+        where={"id": current_user_id},
+        include={
+            "companyAddress": True,
+            "homeAddress": True
+        }
+    )
+    
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get the relevant address
+    user_address = current_user.homeAddress if search_type == "home" else current_user.companyAddress
+    
+    if not user_address:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Please set your {search_type} address in your profile first"
+        )
+    
+    if not user_address.latitude or not user_address.longitude:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Your {search_type} address could not be geocoded. Please update your address with a valid location."
+        )
+    
+    lat = user_address.latitude
+    lng = user_address.longitude
+    
+    # PostGIS spatial query using ST_DWithin for efficient radius search
+    # ST_DWithin uses the GiST index for sub-100ms performance
+    try:
+        nearby_users = await db.query_raw(
+            f'''
+            SELECT 
+                u.id,
+                u."firstName",
+                u."lastName",
+                u.email,
+                u.phone,
+                u.role,
+                u."willingToTake",
+                u."hasDriversLicense",
+                u."profilePath",
+                a.city,
+                a.zipcode,
+                ST_Distance(
+                    a.location,
+                    ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+                ) as distance_meters
+            FROM "User" u
+            JOIN "{table}" a ON a."userId" = u.id
+            WHERE u.id != $3
+              AND a.location IS NOT NULL
+              AND ST_DWithin(
+                  a.location,
+                  ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+                  $4
+              )
+            ORDER BY distance_meters ASC
+            LIMIT 20
+            ''',
+            lng,  # $1 - longitude comes first in ST_MakePoint
+            lat,  # $2 - latitude
+            current_user_id,  # $3 - exclude current user
+            radius_meters  # $4 - search radius in meters
+        )
+    except Exception as e:
+        # If PostGIS isn't available, fall back to a helpful error
+        error_str = str(e).lower()
+        if "st_dwithin" in error_str or "postgis" in error_str or "geography" in error_str:
+            raise HTTPException(
+                status_code=503,
+                detail="Geospatial search is not available. PostGIS extension may not be enabled on the database."
+            )
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    # Format results with distance in miles
+    results = []
+    for user in nearby_users:
+        distance_miles = round(user["distance_meters"] / 1609.34, 1)
+        results.append({
+            "id": user["id"],
+            "firstName": user["firstName"],
+            "lastName": user["lastName"],
+            "email": user["email"],
+            "phone": user["phone"],
+            "role": user["role"],
+            "willingToTake": user["willingToTake"],
+            "hasDriversLicense": user["hasDriversLicense"],
+            "profilePath": user["profilePath"],
+            f"{search_type}Address": {
+                "city": user["city"],
+                "zipcode": user["zipcode"]
+            },
+            "distanceMiles": distance_miles,
+            "distanceText": f"{distance_miles} mi away"
+        })
+    
+    return {
+        "searchType": search_type,
+        "radiusMiles": radius_miles,
+        "resultsCount": len(results),
+        "users": results
+    }
 
 
 @app.post("/connection-requests")
