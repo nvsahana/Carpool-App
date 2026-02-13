@@ -7,6 +7,7 @@ import SignUp from "./components/mainPageComponents/SignUp.js";
 import AboutUs from "./components/mainPageComponents/AboutUs.js";
 import Profile from "./components/mainPageComponents/profile.js";
 import Messages from './components/mainPageComponents/Messages';
+import Groups from './components/mainPageComponents/Groups';
 const router = createBrowserRouter([
     {
         path: '/',
@@ -44,6 +45,10 @@ const router = createBrowserRouter([
             {
                 path: '/messages/:userId',
                 element: <Messages />
+            },
+            {
+                path: '/groups',
+                element: <Groups />
             }
         ]
     }

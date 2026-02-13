@@ -365,3 +365,255 @@ export async function getUnreadCount() {
         return 0
     }
 }
+
+
+// ============================================
+// CARPOOL GROUP API FUNCTIONS
+// ============================================
+
+/**
+ * Create a new carpool group (driver only)
+ * @param {string} name - Group name
+ * @param {number} maxSeats - Maximum seats (default 4)
+ * @returns {Promise<Object>} Created group
+ */
+export async function createCarpoolGroup(name, maxSeats = 4) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const formData = new URLSearchParams()
+    if (name) formData.append('name', name)
+    formData.append('maxSeats', maxSeats)
+    
+    const response = await fetch(`${API_BASE}/groups`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to create group')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get all groups the user is part of
+ * @returns {Promise<Array>} Array of groups
+ */
+export async function getUserGroups() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch groups')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get detailed information about a specific group
+ * @param {number} groupId - Group ID
+ * @returns {Promise<Object>} Group details
+ */
+export async function getGroupDetails(groupId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch group details')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Search for open groups where user is "on the way"
+ * @param {number} maxDetourMiles - Maximum acceptable detour (default 3)
+ * @returns {Promise<Object>} Search results with groups
+ */
+export async function searchOpenGroups(maxDetourMiles = 3) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/open?max_detour_miles=${maxDetourMiles}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to search groups')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Request to join a carpool group
+ * @param {number} groupId - Group ID to join
+ * @returns {Promise<Object>} Join request
+ */
+export async function requestToJoinGroup(groupId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}/requests`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to request to join group')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get pending join requests for a group (members only)
+ * @param {number} groupId - Group ID
+ * @returns {Promise<Array>} Array of pending requests
+ */
+export async function getGroupRequests(groupId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}/requests`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch group requests')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Vote on a join request (approve or reject)
+ * @param {number} groupId - Group ID
+ * @param {number} requestId - Request ID
+ * @param {string} vote - 'approve' or 'reject'
+ * @returns {Promise<Object>} Vote result
+ */
+export async function voteOnGroupRequest(groupId, requestId, vote) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const formData = new URLSearchParams()
+    formData.append('vote', vote)
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}/requests/${requestId}/vote`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to vote on request')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Leave a carpool group (passengers only)
+ * @param {number} groupId - Group ID
+ * @returns {Promise<Object>} Response message
+ */
+export async function leaveGroup(groupId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}/leave`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to leave group')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Close a carpool group (driver only)
+ * @param {number} groupId - Group ID
+ * @returns {Promise<Object>} Response message
+ */
+export async function closeGroup(groupId) {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/groups/${groupId}/close`, {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to close group')
+    }
+    
+    return response.json()
+}
+
+/**
+ * Get all group join requests made by the current user
+ * @returns {Promise<Array>} Array of requests with progress
+ */
+export async function getMyGroupRequests() {
+    const token = localStorage.getItem('access_token')
+    if (!token) throw new Error('Not authenticated')
+    
+    const response = await fetch(`${API_BASE}/my-group-requests`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.detail || 'Failed to fetch your group requests')
+    }
+    
+    return response.json()
+}

@@ -64,6 +64,14 @@ function Header() {
                             <span className="unread-count-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                         )}
                     </Link>
+                    {localStorage.getItem('access_token') && (
+                        <Link 
+                            to="/groups" 
+                            className={`nav-link ${location.pathname === '/groups' ? 'active' : ''}`}
+                        >
+                            Groups
+                        </Link>
+                    )}
                 </nav>
             </div>
         </header>
