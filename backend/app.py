@@ -1567,15 +1567,97 @@ async def search_open_groups(
         }
         
     except Exception as e:
-        # PostGIS not available - return empty with message
+        # PostGIS not available - fall through to fallback
         error_str = str(e).lower()
-        if "calculate_detour_miles" in error_str or "is_on_the_way" in error_str:
-            return {
-                "searchType": "groups",
-                "error": "Geospatial search not available yet. Please try again after deployment.",
-                "groups": []
+        if "calculate_detour_miles" not in error_str and "is_on_the_way" not in error_str and "function" not in error_str:
+            raise HTTPException(status_code=500, detail=str(e))
+        # Fall through to fallback below
+    
+    # Fallback: Find groups by matching city/office when PostGIS unavailable
+    # This finds groups where driver works at same office or lives in same city
+    fallback_where = {
+        "status": "OPEN",
+        "driverId": {"not": user_id},  # Exclude own groups
+    }
+    
+    fallback_groups = await db.carpoolgroup.find_many(
+        where=fallback_where,
+        include={
+            "driver": {
+                "include": {
+                    "companyAddress": True,
+                    "homeAddress": True
+                }
             }
-        raise HTTPException(status_code=500, detail=str(e))
+        },
+        take=20
+    )
+    
+    # Filter and score groups by matching criteria
+    result_groups = []
+    for g in fallback_groups:
+        # Double check it's not full
+        if g.currentOccupancy >= g.maxSeats:
+            continue
+            
+        # Calculate match type (priority: office > work city > home city)
+        match_type = None
+        match_score = 0
+        
+        if user.companyAddress and g.driver.companyAddress:
+            if user.companyAddress.officeName and g.driver.companyAddress.officeName:
+                if user.companyAddress.officeName.lower() == g.driver.companyAddress.officeName.lower():
+                    match_type = "Same Office"
+                    match_score = 100
+            if not match_type and user.companyAddress.city and g.driver.companyAddress.city:
+                if user.companyAddress.city.lower() == g.driver.companyAddress.city.lower():
+                    match_type = "Same Work City"
+                    match_score = 50
+                    
+        if not match_type and user.homeAddress and g.driver.homeAddress:
+            if user.homeAddress.city and g.driver.homeAddress.city:
+                if user.homeAddress.city.lower() == g.driver.homeAddress.city.lower():
+                    match_type = "Same Home City"
+                    match_score = 30
+        
+        # Only include groups with at least one match
+        if match_type is None:
+            continue
+        
+        result_groups.append({
+            "id": g.id,
+            "name": g.name,
+            "driver": {
+                "id": g.driver.id,
+                "firstName": g.driver.firstName,
+                "lastName": g.driver.lastName,
+                "profilePath": g.driver.profilePath
+            },
+            "destination": {
+                "city": g.driver.companyAddress.city if g.driver.companyAddress else None,
+                "officeName": g.driver.companyAddress.officeName if g.driver.companyAddress else None
+            },
+            "maxSeats": g.maxSeats,
+            "currentOccupancy": g.currentOccupancy,
+            "availableSeats": g.maxSeats - g.currentOccupancy,
+            "matchType": match_type,
+            "detourMiles": None,
+            "detourText": match_type,
+            "_score": match_score
+        })
+    
+    # Sort by match score (best matches first)
+    result_groups.sort(key=lambda x: x["_score"], reverse=True)
+    for g in result_groups:
+        del g["_score"]
+    
+    return {
+        "searchType": "groups_fallback",
+        "maxDetourMiles": max_detour_miles,
+        "alreadyInGroup": existing_membership is not None,
+        "note": "Showing groups by city/office match (geospatial search unavailable)",
+        "groups": result_groups
+    }
 
 
 @app.get("/groups/{group_id}")

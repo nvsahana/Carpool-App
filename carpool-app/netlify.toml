@@ -5,3 +5,8 @@
 
 [build.environment]
   CI = "false"
+# SPA routing - redirect all paths to index.html for React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

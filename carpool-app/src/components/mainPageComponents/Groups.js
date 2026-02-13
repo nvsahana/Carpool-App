@@ -348,8 +348,8 @@ function Groups() {
                         <div className="open-groups-grid">
                             {openGroups.length === 0 ? (
                                 <div className="empty-state">
-                                    <p>No groups found on your route.</p>
-                                    <p>Try increasing the max detour distance.</p>
+                                    <p>No groups found matching your route.</p>
+                                    <p>Try increasing the max detour distance or check back later.</p>
                                 </div>
                             ) : (
                                 openGroups.map(group => (
@@ -360,12 +360,20 @@ function Groups() {
                                                 {group.currentOccupancy}/{group.maxSeats} seats
                                             </span>
                                             <span className="group-detour">
-                                                +{group.detourMiles?.toFixed(1)} mi detour
+                                                {group.detourMiles != null 
+                                                    ? `+${group.detourMiles.toFixed(1)} mi detour`
+                                                    : group.matchType || 'Match'
+                                                }
                                             </span>
                                         </div>
                                         <p className="group-driver">
-                                            Driver: {group.driver?.name || 'Unknown'}
+                                            Driver: {group.driver?.firstName || 'Unknown'} {group.driver?.lastName || ''}
                                         </p>
+                                        {group.destination?.city && (
+                                            <p className="group-destination">
+                                                To: {group.destination.officeName || group.destination.city}
+                                            </p>
+                                        )}
                                         <button 
                                             className="btn-join"
                                             onClick={() => handleRequestJoin(group.id)}

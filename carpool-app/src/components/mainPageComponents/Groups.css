@@ -221,7 +221,13 @@
 .group-driver {
     font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.6);
-    margin: 0.5rem 0 1rem 0;
+    margin: 0.5rem 0 0.5rem 0;
+}
+
+.group-destination {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 1rem 0;
 }
 
 .btn-join {
