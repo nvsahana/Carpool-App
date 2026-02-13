@@ -1293,3 +1293,762 @@ async def send_message(
         "isRead": message.isRead,
         "createdAt": message.createdAt.isoformat()
     }
+
+
+# ============================================
+# CARPOOL GROUP ENDPOINTS
+# Multi-passenger groups with atomic consensus
+# ============================================
+
+@app.post("/groups")
+async def create_carpool_group(
+    request: Request,
+    name: Optional[str] = Form(None),
+    maxSeats: int = Form(4)
+):
+    """
+    Create a new carpool group. The creator becomes the driver.
+    Group starts with 1 occupant (the driver).
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get user with addresses for route calculation
+    user = await db.user.find_unique(
+        where={"id": user_id},
+        include={
+            "homeAddress": True,
+            "companyAddress": True
+        }
+    )
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.role != "driver":
+        raise HTTPException(status_code=400, detail="Only drivers can create carpool groups")
+    
+    if not user.homeAddress or not user.companyAddress:
+        raise HTTPException(status_code=400, detail="Please set your home and company addresses first")
+    
+    # Calculate base distance if coordinates available
+    base_distance = None
+    if (user.homeAddress.latitude and user.homeAddress.longitude and 
+        user.companyAddress.latitude and user.companyAddress.longitude):
+        # Use PostGIS to calculate distance
+        try:
+            result = await db.query_raw(
+                '''
+                SELECT ST_Distance(
+                    ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography
+                ) / 1609.34 as distance_miles
+                ''',
+                user.homeAddress.longitude, user.homeAddress.latitude,
+                user.companyAddress.longitude, user.companyAddress.latitude
+            )
+            if result:
+                base_distance = round(result[0]["distance_miles"], 1)
+        except:
+            pass  # If PostGIS not available, skip distance calculation
+    
+    # Create the group
+    group = await db.carpoolgroup.create({
+        "name": name or f"{user.firstName}'s Carpool",
+        "driverId": user_id,
+        "maxSeats": min(maxSeats, 6),  # Cap at 6 seats
+        "currentOccupancy": 1,
+        "status": "OPEN",
+        "originLat": user.homeAddress.latitude,
+        "originLng": user.homeAddress.longitude,
+        "destLat": user.companyAddress.latitude,
+        "destLng": user.companyAddress.longitude,
+        "baseDistanceMiles": base_distance
+    })
+    
+    # Add driver as first member
+    await db.groupmember.create({
+        "groupId": group.id,
+        "userId": user_id,
+        "role": "driver",
+        "pickupLat": user.homeAddress.latitude,
+        "pickupLng": user.homeAddress.longitude,
+        "pickupOrder": 0,
+        "detourMiles": 0
+    })
+    
+    return {
+        "id": group.id,
+        "name": group.name,
+        "driverName": f"{user.firstName} {user.lastName}",
+        "maxSeats": group.maxSeats,
+        "currentOccupancy": group.currentOccupancy,
+        "status": group.status,
+        "baseDistanceMiles": base_distance,
+        "message": "Carpool group created successfully"
+    }
+
+
+@app.get("/groups")
+async def get_user_groups(request: Request):
+    """Get all groups the user is part of (as driver or passenger)"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get groups where user is a member
+    memberships = await db.groupmember.find_many(
+        where={"userId": user_id},
+        include={
+            "group": {
+                "include": {
+                    "driver": True,
+                    "members": {
+                        "include": {
+                            "user": True
+                        }
+                    }
+                }
+            }
+        }
+    )
+    
+    groups = []
+    for membership in memberships:
+        group = membership.group
+        groups.append({
+            "id": group.id,
+            "name": group.name,
+            "myRole": membership.role,
+            "driver": {
+                "id": group.driver.id,
+                "firstName": group.driver.firstName,
+                "lastName": group.driver.lastName,
+                "profilePath": group.driver.profilePath
+            },
+            "maxSeats": group.maxSeats,
+            "currentOccupancy": group.currentOccupancy,
+            "status": group.status,
+            "baseDistanceMiles": group.baseDistanceMiles,
+            "members": [
+                {
+                    "id": m.user.id,
+                    "firstName": m.user.firstName,
+                    "lastName": m.user.lastName,
+                    "profilePath": m.user.profilePath,
+                    "role": m.role,
+                    "pickupOrder": m.pickupOrder
+                }
+                for m in group.members
+            ]
+        })
+    
+    return groups
+
+
+@app.get("/groups/{group_id}")
+async def get_group_details(request: Request, group_id: int):
+    """Get detailed information about a specific group"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    group = await db.carpoolgroup.find_unique(
+        where={"id": group_id},
+        include={
+            "driver": {
+                "include": {
+                    "companyAddress": True
+                }
+            },
+            "members": {
+                "include": {
+                    "user": True
+                }
+            },
+            "requests": {
+                "where": {"status": "pending"},
+                "include": {
+                    "user": True,
+                    "votes": True
+                }
+            }
+        }
+    )
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Check if user is a member
+    is_member = any(m.userId == user_id for m in group.members)
+    
+    return {
+        "id": group.id,
+        "name": group.name,
+        "status": group.status,
+        "maxSeats": group.maxSeats,
+        "currentOccupancy": group.currentOccupancy,
+        "availableSeats": group.maxSeats - group.currentOccupancy,
+        "baseDistanceMiles": group.baseDistanceMiles,
+        "driver": {
+            "id": group.driver.id,
+            "firstName": group.driver.firstName,
+            "lastName": group.driver.lastName,
+            "profilePath": group.driver.profilePath,
+            "companyAddress": {
+                "officeName": group.driver.companyAddress.officeName if group.driver.companyAddress else None,
+                "city": group.driver.companyAddress.city if group.driver.companyAddress else None
+            } if group.driver.companyAddress else None
+        },
+        "members": [
+            {
+                "id": m.user.id,
+                "firstName": m.user.firstName,
+                "lastName": m.user.lastName,
+                "profilePath": m.user.profilePath,
+                "role": m.role,
+                "pickupOrder": m.pickupOrder,
+                "detourMiles": m.detourMiles
+            }
+            for m in sorted(group.members, key=lambda x: x.pickupOrder or 0)
+        ],
+        "isMember": is_member,
+        "isDriver": group.driverId == user_id,
+        # Only show pending requests to members
+        "pendingRequests": [
+            {
+                "id": r.id,
+                "user": {
+                    "id": r.user.id,
+                    "firstName": r.user.firstName,
+                    "lastName": r.user.lastName,
+                    "profilePath": r.user.profilePath
+                },
+                "detourMiles": r.detourMiles,
+                "votesRequired": r.votesRequired,
+                "votesReceived": r.votesReceived,
+                "myVote": next((v.vote for v in r.votes if v.voterId == user_id), None)
+            }
+            for r in group.requests
+        ] if is_member else []
+    }
+
+
+@app.post("/groups/{group_id}/requests")
+async def request_to_join_group(request: Request, group_id: int):
+    """
+    Request to join a carpool group.
+    Calculates detour distance using PostGIS.
+    All current members must approve (atomic consensus).
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get group
+    group = await db.carpoolgroup.find_unique(
+        where={"id": group_id},
+        include={"members": True}
+    )
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if group.status != "OPEN":
+        raise HTTPException(status_code=400, detail="This group is not accepting new members")
+    
+    if group.currentOccupancy >= group.maxSeats:
+        raise HTTPException(status_code=400, detail="This group is full")
+    
+    # Check if already a member
+    if any(m.userId == user_id for m in group.members):
+        raise HTTPException(status_code=400, detail="You are already a member of this group")
+    
+    # Check for existing pending request
+    existing = await db.grouprequest.find_first(
+        where={"groupId": group_id, "userId": user_id, "status": "pending"}
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="You already have a pending request for this group")
+    
+    # Get user's home address for detour calculation
+    user = await db.user.find_unique(
+        where={"id": user_id},
+        include={"homeAddress": True}
+    )
+    
+    if not user or not user.homeAddress:
+        raise HTTPException(status_code=400, detail="Please set your home address first")
+    
+    # Calculate detour using PostGIS
+    detour_miles = None
+    if (group.originLat and group.originLng and group.destLat and group.destLng and
+        user.homeAddress.latitude and user.homeAddress.longitude):
+        try:
+            result = await db.query_raw(
+                '''
+                SELECT calculate_detour_miles($1, $2, $3, $4, $5, $6) as detour
+                ''',
+                group.originLng, group.originLat,
+                group.destLng, group.destLat,
+                user.homeAddress.longitude, user.homeAddress.latitude
+            )
+            if result:
+                detour_miles = round(result[0]["detour"], 1)
+        except:
+            pass  # If function not available, skip
+    
+    # Create the request
+    join_request = await db.grouprequest.create({
+        "groupId": group_id,
+        "userId": user_id,
+        "status": "pending",
+        "votesRequired": group.currentOccupancy,  # All current members must approve
+        "votesReceived": 0,
+        "detourMiles": detour_miles
+    })
+    
+    return {
+        "id": join_request.id,
+        "groupId": group_id,
+        "status": "pending",
+        "votesRequired": join_request.votesRequired,
+        "votesReceived": 0,
+        "detourMiles": detour_miles,
+        "message": f"Request sent. Waiting for approval from {join_request.votesRequired} member(s)."
+    }
+
+
+@app.get("/groups/{group_id}/requests")
+async def get_group_requests(request: Request, group_id: int):
+    """Get all pending join requests for a group (members only)"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Verify user is a member
+    membership = await db.groupmember.find_first(
+        where={"groupId": group_id, "userId": user_id}
+    )
+    if not membership:
+        raise HTTPException(status_code=403, detail="You must be a group member to view requests")
+    
+    requests = await db.grouprequest.find_many(
+        where={"groupId": group_id, "status": "pending"},
+        include={
+            "user": {
+                "include": {
+                    "homeAddress": True,
+                    "companyAddress": True
+                }
+            },
+            "votes": True
+        },
+        order={"createdAt": "desc"}
+    )
+    
+    return [
+        {
+            "id": r.id,
+            "user": {
+                "id": r.user.id,
+                "firstName": r.user.firstName,
+                "lastName": r.user.lastName,
+                "profilePath": r.user.profilePath,
+                "role": r.user.role,
+                "homeCity": r.user.homeAddress.city if r.user.homeAddress else None,
+                "workCity": r.user.companyAddress.city if r.user.companyAddress else None
+            },
+            "detourMiles": r.detourMiles,
+            "votesRequired": r.votesRequired,
+            "votesReceived": r.votesReceived,
+            "myVote": next((v.vote for v in r.votes if v.voterId == user_id), None),
+            "createdAt": r.createdAt.isoformat()
+        }
+        for r in requests
+    ]
+
+
+@app.post("/groups/{group_id}/requests/{request_id}/vote")
+async def vote_on_join_request(
+    request: Request,
+    group_id: int,
+    request_id: int,
+    vote: str = Form(...)  # "approve" or "reject"
+):
+    """
+    Vote on a join request. Implements atomic consensus:
+    - All members must vote "approve" for user to join
+    - Any "reject" vote immediately denies the request
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    if vote not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Vote must be 'approve' or 'reject'")
+    
+    # Verify user is a member
+    membership = await db.groupmember.find_first(
+        where={"groupId": group_id, "userId": user_id}
+    )
+    if not membership:
+        raise HTTPException(status_code=403, detail="You must be a group member to vote")
+    
+    # Get the request
+    join_request = await db.grouprequest.find_unique(
+        where={"id": request_id},
+        include={
+            "user": {"include": {"homeAddress": True}},
+            "group": True,
+            "votes": True
+        }
+    )
+    
+    if not join_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if join_request.groupId != group_id:
+        raise HTTPException(status_code=400, detail="Request does not belong to this group")
+    
+    if join_request.status != "pending":
+        raise HTTPException(status_code=400, detail="This request has already been processed")
+    
+    # Check if already voted
+    existing_vote = next((v for v in join_request.votes if v.voterId == user_id), None)
+    if existing_vote:
+        raise HTTPException(status_code=400, detail="You have already voted on this request")
+    
+    # Record the vote
+    await db.groupvote.create({
+        "requestId": request_id,
+        "voterId": user_id,
+        "vote": vote
+    })
+    
+    if vote == "reject":
+        # Any rejection = request denied immediately
+        await db.grouprequest.update(
+            where={"id": request_id},
+            data={"status": "rejected"}
+        )
+        return {
+            "status": "rejected",
+            "message": "Request rejected"
+        }
+    
+    # Increment votes received
+    new_votes = join_request.votesReceived + 1
+    
+    # Check if consensus reached
+    if new_votes >= join_request.votesRequired:
+        # All members approved! Add user to group
+        group = join_request.group
+        requester = join_request.user
+        
+        # Calculate pickup order (last in the route)
+        max_order = await db.groupmember.find_first(
+            where={"groupId": group_id},
+            order={"pickupOrder": "desc"}
+        )
+        new_order = (max_order.pickupOrder or 0) + 1 if max_order else 1
+        
+        # Add as member
+        await db.groupmember.create({
+            "groupId": group_id,
+            "userId": requester.id,
+            "role": "passenger",
+            "pickupLat": requester.homeAddress.latitude if requester.homeAddress else None,
+            "pickupLng": requester.homeAddress.longitude if requester.homeAddress else None,
+            "pickupOrder": new_order,
+            "detourMiles": join_request.detourMiles
+        })
+        
+        # Update group occupancy (trigger will auto-set status to FULL if needed)
+        await db.carpoolgroup.update(
+            where={"id": group_id},
+            data={"currentOccupancy": group.currentOccupancy + 1}
+        )
+        
+        # Mark request as approved
+        await db.grouprequest.update(
+            where={"id": request_id},
+            data={"status": "approved", "votesReceived": new_votes}
+        )
+        
+        return {
+            "status": "approved",
+            "message": f"Consensus reached! {requester.firstName} has been added to the group.",
+            "newOccupancy": group.currentOccupancy + 1
+        }
+    
+    # Update votes received
+    await db.grouprequest.update(
+        where={"id": request_id},
+        data={"votesReceived": new_votes}
+    )
+    
+    return {
+        "status": "pending",
+        "votesReceived": new_votes,
+        "votesRequired": join_request.votesRequired,
+        "message": f"Vote recorded. {new_votes}/{join_request.votesRequired} approvals received."
+    }
+
+
+@app.delete("/groups/{group_id}/leave")
+async def leave_group(request: Request, group_id: int):
+    """Leave a carpool group. Drivers cannot leave (must close group instead)."""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get membership
+    membership = await db.groupmember.find_first(
+        where={"groupId": group_id, "userId": user_id}
+    )
+    
+    if not membership:
+        raise HTTPException(status_code=404, detail="You are not a member of this group")
+    
+    if membership.role == "driver":
+        raise HTTPException(status_code=400, detail="Drivers cannot leave their own group. Close the group instead.")
+    
+    # Remove member
+    await db.groupmember.delete(where={"id": membership.id})
+    
+    # Update group occupancy
+    await db.carpoolgroup.update(
+        where={"id": group_id},
+        data={"currentOccupancy": {"decrement": 1}}
+    )
+    
+    return {"message": "You have left the group"}
+
+
+@app.patch("/groups/{group_id}/close")
+async def close_group(request: Request, group_id: int):
+    """Close a carpool group (driver only). Removes all members."""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    group = await db.carpoolgroup.find_unique(where={"id": group_id})
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if group.driverId != user_id:
+        raise HTTPException(status_code=403, detail="Only the driver can close the group")
+    
+    # Update status to CLOSED
+    await db.carpoolgroup.update(
+        where={"id": group_id},
+        data={"status": "CLOSED"}
+    )
+    
+    return {"message": "Group has been closed"}
+
+
+@app.get("/groups/open")
+async def search_open_groups(
+    request: Request,
+    max_detour_miles: float = 3.0
+):
+    """
+    Search for open carpool groups where user's home is "on the way".
+    Uses PostGIS to calculate if pickup adds acceptable detour.
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    # Get user's home location
+    user = await db.user.find_unique(
+        where={"id": user_id},
+        include={"homeAddress": True, "companyAddress": True}
+    )
+    
+    if not user or not user.homeAddress:
+        raise HTTPException(status_code=400, detail="Please set your home address first")
+    
+    if not user.homeAddress.latitude or not user.homeAddress.longitude:
+        raise HTTPException(status_code=400, detail="Your home address could not be geocoded")
+    
+    # Check if user already in a group
+    existing_membership = await db.groupmember.find_first(
+        where={"userId": user_id}
+    )
+    
+    try:
+        # Use PostGIS to find groups where user is "on the way"
+        groups = await db.query_raw(
+            '''
+            SELECT 
+                g.id,
+                g.name,
+                g."maxSeats",
+                g."currentOccupancy",
+                g."baseDistanceMiles",
+                u.id as driver_id,
+                u."firstName" as driver_first_name,
+                u."lastName" as driver_last_name,
+                u."profilePath" as driver_profile,
+                ca.city as dest_city,
+                ca."officeName" as dest_office,
+                calculate_detour_miles(
+                    g."originLng", g."originLat",
+                    g."destLng", g."destLat",
+                    $1, $2
+                ) as detour_miles
+            FROM "CarpoolGroup" g
+            JOIN "User" u ON u.id = g."driverId"
+            LEFT JOIN "CompanyAddress" ca ON ca."userId" = g."driverId"
+            WHERE g.status = 'OPEN'
+              AND g."currentOccupancy" < g."maxSeats"
+              AND g."originLat" IS NOT NULL
+              AND g."destLat" IS NOT NULL
+              AND is_on_the_way(
+                  g."originLng", g."originLat",
+                  g."destLng", g."destLat",
+                  $1, $2,
+                  $3
+              )
+            ORDER BY detour_miles ASC
+            LIMIT 10
+            ''',
+            user.homeAddress.longitude,
+            user.homeAddress.latitude,
+            max_detour_miles
+        )
+        
+        return {
+            "searchType": "groups",
+            "maxDetourMiles": max_detour_miles,
+            "alreadyInGroup": existing_membership is not None,
+            "groups": [
+                {
+                    "id": g["id"],
+                    "name": g["name"],
+                    "driver": {
+                        "id": g["driver_id"],
+                        "firstName": g["driver_first_name"],
+                        "lastName": g["driver_last_name"],
+                        "profilePath": g["driver_profile"]
+                    },
+                    "destination": {
+                        "city": g["dest_city"],
+                        "officeName": g["dest_office"]
+                    },
+                    "maxSeats": g["maxSeats"],
+                    "currentOccupancy": g["currentOccupancy"],
+                    "availableSeats": g["maxSeats"] - g["currentOccupancy"],
+                    "detourMiles": round(g["detour_miles"], 1) if g["detour_miles"] else None,
+                    "detourText": f"{round(g['detour_miles'], 1)} mi off route" if g["detour_miles"] else None
+                }
+                for g in groups
+            ]
+        }
+        
+    except Exception as e:
+        # PostGIS not available - return empty with message
+        error_str = str(e).lower()
+        if "calculate_detour_miles" in error_str or "is_on_the_way" in error_str:
+            return {
+                "searchType": "groups",
+                "error": "Geospatial search not available yet. Please try again after deployment.",
+                "groups": []
+            }
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/my-group-requests")
+async def get_my_group_requests(request: Request):
+    """Get all group join requests made by the current user"""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Malformed token payload")
+    
+    requests = await db.grouprequest.find_many(
+        where={"userId": user_id},
+        include={
+            "group": {
+                "include": {
+                    "driver": True
+                }
+            }
+        },
+        order={"createdAt": "desc"}
+    )
+    
+    return [
+        {
+            "id": r.id,
+            "status": r.status,
+            "votesRequired": r.votesRequired,
+            "votesReceived": r.votesReceived,
+            "detourMiles": r.detourMiles,
+            "group": {
+                "id": r.group.id,
+                "name": r.group.name,
+                "driver": {
+                    "firstName": r.group.driver.firstName,
+                    "lastName": r.group.driver.lastName
+                }
+            },
+            "createdAt": r.createdAt.isoformat(),
+            "progressPercent": round((r.votesReceived / r.votesRequired) * 100) if r.votesRequired > 0 else 0
+        }
+        for r in requests
+    ]

@@ -35,6 +35,12 @@ model User {
   sentMessages     Message[]       @relation("SentMessages")
   conversations1   Conversation[]  @relation("User1Conversations")
   conversations2   Conversation[]  @relation("User2Conversations")
+  
+  // Carpool Groups
+  drivingGroups    CarpoolGroup[]  @relation("GroupDriver")
+  groupMemberships GroupMember[]
+  groupRequests    GroupRequest[]  @relation("GroupRequestUser")
+  groupVotes       GroupVote[]     @relation("GroupVoter")
 }
 
 model CompanyAddress {
@@ -108,4 +114,100 @@ model Message {
 
   @@index([conversationId])
   @@index([senderId])
+}
+
+
+// ============================================
+// CARPOOL GROUP SYSTEM
+// Enables multi-passenger groups with atomic consensus
+// ============================================
+
+model CarpoolGroup {
+  id               Int      @id @default(autoincrement())
+  name             String?  // e.g., "Morning Commute to Google MTV"
+  driverId         Int
+  maxSeats         Int      @default(4)
+  currentOccupancy Int      @default(1) // Starts at 1 (driver)
+  status           String   @default("OPEN") // OPEN, FULL, CLOSED
+  
+  // Route endpoints (for PostGIS corridor calculation)
+  // We calculate "on the way" using line from driver home → office
+  originLat        Float?   // Driver's home lat
+  originLng        Float?   // Driver's home lng
+  destLat          Float?   // Office lat
+  destLng          Float?   // Office lng
+  
+  // Calculated estimated commute (without detours)
+  baseDistanceMiles Float?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  driver           User     @relation("GroupDriver", fields: [driverId], references: [id])
+  members          GroupMember[]
+  requests         GroupRequest[]
+  
+  @@index([status])
+  @@index([driverId])
+}
+
+model GroupMember {
+  id          Int      @id @default(autoincrement())
+  groupId     Int
+  userId      Int
+  role        String   // "driver" or "passenger"
+  joinedAt    DateTime @default(now())
+  
+  // Pickup location (passenger's home)
+  pickupLat   Float?
+  pickupLng   Float?
+  pickupOrder Int?     // Order in the route: 1st pickup, 2nd pickup, etc.
+  
+  // How far off the direct route this pickup is
+  detourMiles Float?
+  
+  group       CarpoolGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupRequest {
+  id            Int      @id @default(autoincrement())
+  groupId       Int
+  userId        Int      // User requesting to join
+  status        String   @default("pending") // pending, approved, rejected
+  
+  // Atomic Consensus: all current members must approve
+  votesRequired Int      // = currentOccupancy at time of request
+  votesReceived Int      @default(0)
+  
+  // Calculated detour impact (miles off the direct route)
+  detourMiles   Float?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  group         CarpoolGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User         @relation("GroupRequestUser", fields: [userId], references: [id])
+  votes         GroupVote[]
+  
+  @@unique([groupId, userId])
+  @@index([groupId, status])
+}
+
+model GroupVote {
+  id        Int      @id @default(autoincrement())
+  requestId Int
+  voterId   Int      // Group member who voted
+  vote      String   // "approve" or "reject"
+  votedAt   DateTime @default(now())
+  
+  request   GroupRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  voter     User         @relation("GroupVoter", fields: [voterId], references: [id])
+  
+  @@unique([requestId, voterId])
+  @@index([requestId])
 }
