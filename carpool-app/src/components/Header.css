@@ -88,3 +88,17 @@
         justify-content: center;
     }
 }
+
+.logout-btn {
+    background: none;
+    border: 1px solid #e74c3c;
+    color: #e74c3c !important;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.logout-btn:hover {
+    background-color: #e74c3c !important;
+    color: white !important;
+}

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './login.css'
-import { login } from '../../Routes/api'
+import { login as apiLogin } from '../../Routes/api'
 import { useAsync } from '../../hooks/useAsync'
+import { useAuth } from '../../context/AuthContext'
 
 function Login() {
     const [email, setEmail] = useState('')
@@ -10,8 +11,9 @@ function Login() {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
-    const [submitLogin, isLoading, submitError] = useAsync(login)
+    const [submitLogin, isLoading, submitError] = useAsync(apiLogin)
     const navigate = useNavigate()
+    const { login } = useAuth()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -27,9 +29,9 @@ function Login() {
         try {
             const response = await submitLogin(email, password)
             
-            // Store the JWT token
+            // Store the JWT token via auth context
             if (response?.access_token) {
-                localStorage.setItem('access_token', response.access_token)
+                login(response.access_token)
                 setSuccess(true)
                 
                 // Navigate to SearchCars page after successful login

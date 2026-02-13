@@ -1,15 +1,18 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getUnreadCount } from '../Routes/api';
+import { useAuth } from '../context/AuthContext';
 import './Header.css';
 
 function Header() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { isAuthenticated, isLoading, logout, user } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     
     useEffect(() => {
         const fetchUnreadCount = async () => {
-            if (localStorage.getItem('access_token')) {
+            if (isAuthenticated) {
                 const count = await getUnreadCount();
                 setUnreadCount(count);
             }
@@ -20,7 +23,12 @@ function Header() {
         // Poll for new messages every 10 seconds
         const interval = setInterval(fetchUnreadCount, 10000);
         return () => clearInterval(interval);
-    }, [location.pathname]); // Re-fetch when page changes
+    }, [location.pathname, isAuthenticated]); // Re-fetch when page changes or auth changes
+
+    const handleLogout = () => {
+        logout();
+        navigate('/');
+    };
     
     return (
         <header className="header">
@@ -49,27 +57,40 @@ function Header() {
                     >
                         Contact
                     </Link>
-                    {localStorage.getItem('access_token') && (
+                    {isAuthenticated && (
                         <Link 
                             to="/profile" 
                             className={`nav-link ${location.pathname === '/profile' ? 'active' : ''}`}
                         >
                             Profile
                         </Link>
-                        
                     )}
-                    <Link to="/messages" className={`nav-link ${location.pathname.startsWith('/messages') ? 'active' : ''}`}>
-                        Messages
-                        {unreadCount > 0 && (
-                            <span className="unread-count-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                        )}
-                    </Link>
-                    {localStorage.getItem('access_token') && (
+                    {isAuthenticated && (
+                        <Link to="/messages" className={`nav-link ${location.pathname.startsWith('/messages') ? 'active' : ''}`}>
+                            Messages
+                            {unreadCount > 0 && (
+                                <span className="unread-count-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                            )}
+                        </Link>
+                    )}
+                    {isAuthenticated && (
                         <Link 
                             to="/groups" 
                             className={`nav-link ${location.pathname === '/groups' ? 'active' : ''}`}
                         >
                             Groups
+                        </Link>
+                    )}
+                    {isAuthenticated ? (
+                        <button className="nav-link logout-btn" onClick={handleLogout}>
+                            Logout
+                        </button>
+                    ) : (
+                        <Link 
+                            to="/login" 
+                            className={`nav-link ${location.pathname === '/login' ? 'active' : ''}`}
+                        >
+                            Login
                         </Link>
                     )}
                 </nav>
