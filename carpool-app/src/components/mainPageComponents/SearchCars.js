@@ -6,7 +6,7 @@ import './SearchCars.css';
 function SearchCars() {
     const navigate = useNavigate();
     const [currentUser, setCurrentUser] = useState(null);
-    const [searchType, setSearchType] = useState('office'); // office, street, city
+    const [searchType, setSearchType] = useState('all'); // all, office, street, city
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -72,7 +72,7 @@ function SearchCars() {
     const loadInitialMatches = async () => {
         setLoading(true);
         try {
-            const data = await searchCarpools('office'); // Default to office search
+            const data = await searchCarpools('all'); // Default to top matches across all criteria
             setResults(data);
             setHasSearched(false); // Mark as initial load
         } catch (err) {
@@ -252,10 +252,20 @@ function SearchCars() {
                     )}
 
                     <div className="search-instructions">
-                        <p>Find carpool partners going to:</p>
+                        <p>Filter by work location:</p>
                     </div>
 
                     <div className="search-type-selector">
+                        <label className={`type-option ${searchType === 'all' ? 'active' : ''}`}>
+                            <input
+                                type="radio"
+                                name="searchType"
+                                value="all"
+                                checked={searchType === 'all'}
+                                onChange={(e) => setSearchType(e.target.value)}
+                            />
+                            <span>Top Matches</span>
+                        </label>
                         <label className={`type-option ${searchType === 'office' ? 'active' : ''}`}>
                             <input
                                 type="radio"
@@ -354,12 +364,30 @@ function SearchCars() {
                                         </div>
                                     )}
 
+                                    {user.matchScore && user.matchScore.sameOffice && (
+                                        <div className="match-badge match-badge-office">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/>
+                                            </svg>
+                                            <span>Same office!</span>
+                                        </div>
+                                    )}
+
                                     {user.matchScore && user.matchScore.sameHomeCity && (
                                         <div className="match-badge">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
                                             </svg>
                                             <span>Same home city!</span>
+                                        </div>
+                                    )}
+
+                                    {user.matchScore && user.matchScore.sameHomeZipcode && !user.matchScore.sameHomeCity && (
+                                        <div className="match-badge match-badge-zip">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                            </svg>
+                                            <span>Same home zipcode!</span>
                                         </div>
                                     )}
 
@@ -386,7 +414,12 @@ function SearchCars() {
 
                 {!loading && results.length === 0 && currentUser && (
                     <div className="no-results">
-                        <p>No matches found. Try a different search type.</p>
+                        <p>
+                            {searchType === 'all' 
+                                ? 'No carpool matches found in your area yet. Be the first to invite colleagues!'
+                                : `No matches found for "${searchType}" filter. Try "Top Matches" for broader results.`
+                            }
+                        </p>
                     </div>
                 )}
                     </>

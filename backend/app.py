@@ -319,7 +319,159 @@ async def search_carpools(
     # Build search query based on type using current user's company address
     where_clause = {}
     
-    if type == "office":
+    if type == "all":
+        # Use PostGIS geospatial search for "top matches" when coordinates available
+        # This finds users within ~10 miles of your work location, ranked by distance + match criteria
+        if current_user.companyAddress.latitude and current_user.companyAddress.longitude:
+            lat = current_user.companyAddress.latitude
+            lng = current_user.companyAddress.longitude
+            radius_meters = 16093.4  # ~10 miles
+            
+            try:
+                # PostGIS spatial query - find nearby users at work
+                nearby_users = await db.query_raw(
+                    '''
+                    SELECT 
+                        u.id,
+                        u."firstName",
+                        u."lastName",
+                        u.email,
+                        u.phone,
+                        u.role,
+                        u."willingToTake",
+                        u."hasDriversLicense",
+                        u."profilePath",
+                        ca."officeName" as company_office,
+                        ca.street as company_street,
+                        ca.city as company_city,
+                        ca.zipcode as company_zipcode,
+                        ha.city as home_city,
+                        ha.zipcode as home_zipcode,
+                        ST_Distance(
+                            ca.location,
+                            ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+                        ) as work_distance_meters,
+                        CASE WHEN ha.location IS NOT NULL THEN
+                            ST_Distance(
+                                ha.location,
+                                (SELECT location FROM "HomeAddress" WHERE "userId" = $3)
+                            )
+                        ELSE NULL END as home_distance_meters
+                    FROM "User" u
+                    JOIN "CompanyAddress" ca ON ca."userId" = u.id
+                    LEFT JOIN "HomeAddress" ha ON ha."userId" = u.id
+                    WHERE u.id != $3
+                      AND ca.location IS NOT NULL
+                      AND ST_DWithin(
+                          ca.location,
+                          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+                          $4
+                      )
+                    ORDER BY work_distance_meters ASC
+                    LIMIT 20
+                    ''',
+                    lng, lat, current_user_id, radius_meters
+                )
+                
+                # Format and score the PostGIS results
+                results = []
+                for user in nearby_users:
+                    work_dist_miles = round(user["work_distance_meters"] / 1609.34, 1) if user["work_distance_meters"] else None
+                    home_dist_miles = round(user["home_distance_meters"] / 1609.34, 1) if user.get("home_distance_meters") else None
+                    
+                    # Calculate match score for sorting
+                    score = 0
+                    match_info = {
+                        "sameHomeCity": False,
+                        "sameHomeZipcode": False,
+                        "sameOffice": False,
+                        "sameWorkCity": False,
+                        "workDistanceMiles": work_dist_miles,
+                        "homeDistanceMiles": home_dist_miles
+                    }
+                    
+                    # Bonus for same office
+                    if user["company_office"] and current_user.companyAddress.officeName:
+                        if user["company_office"].lower() == current_user.companyAddress.officeName.lower():
+                            score += 2000
+                            match_info["sameOffice"] = True
+                    
+                    # Bonus for same work city
+                    if user["company_city"] and current_user.companyAddress.city:
+                        if user["company_city"].lower() == current_user.companyAddress.city.lower():
+                            score += 100
+                            match_info["sameWorkCity"] = True
+                    
+                    # Bonus for same home city
+                    if user["home_city"] and current_user.homeAddress and current_user.homeAddress.city:
+                        if user["home_city"].lower() == current_user.homeAddress.city.lower():
+                            score += 1000
+                            match_info["sameHomeCity"] = True
+                    
+                    # Bonus for same home zipcode
+                    if user["home_zipcode"] and current_user.homeAddress and current_user.homeAddress.zipcode:
+                        if user["home_zipcode"] == current_user.homeAddress.zipcode:
+                            score += 500
+                            match_info["sameHomeZipcode"] = True
+                    
+                    # Closer distance = higher score (inverse relationship)
+                    if work_dist_miles is not None:
+                        score += max(0, 200 - (work_dist_miles * 20))  # Up to 200 points for being close
+                    
+                    results.append({
+                        "id": user["id"],
+                        "firstName": user["firstName"],
+                        "lastName": user["lastName"],
+                        "email": user["email"],
+                        "phone": user["phone"],
+                        "role": user["role"],
+                        "willingToTake": user["willingToTake"],
+                        "hasDriversLicense": user["hasDriversLicense"],
+                        "profilePath": user["profilePath"],
+                        "companyAddress": {
+                            "officeName": user["company_office"],
+                            "street": user["company_street"],
+                            "city": user["company_city"],
+                            "zipcode": user["company_zipcode"]
+                        } if user["company_city"] else None,
+                        "homeAddress": {
+                            "city": user["home_city"],
+                            "zipcode": user["home_zipcode"]
+                        } if user["home_city"] else None,
+                        "matchScore": match_info,
+                        "_score": score
+                    })
+                
+                # Sort by score and return top 6
+                results.sort(key=lambda x: x["_score"], reverse=True)
+                top_results = results[:6]
+                for r in top_results:
+                    del r["_score"]
+                return top_results
+                
+            except Exception as e:
+                # PostGIS not available - fall back to string matching
+                error_str = str(e).lower()
+                if "st_dwithin" not in error_str and "postgis" not in error_str:
+                    raise  # Re-raise if it's not a PostGIS error
+                # Fall through to string matching below
+        
+        # Fallback: string matching on city (when no coordinates or PostGIS unavailable)
+        if current_user.companyAddress.city:
+            where_clause = {
+                "companyAddress": {
+                    "is": {
+                        "city": {"equals": current_user.companyAddress.city, "mode": "insensitive"}
+                    }
+                }
+            }
+        else:
+            where_clause = {
+                "companyAddress": {
+                    "isNot": None
+                }
+            }
+    elif type == "office":
         # Match same office name (exact match)
         if not current_user.companyAddress.officeName:
             raise HTTPException(status_code=400, detail="Office name not set in your profile")
@@ -356,7 +508,7 @@ async def search_carpools(
             }
         }
     else:
-        raise HTTPException(status_code=400, detail="Invalid search type. Must be 'office', 'street', or 'city'")
+        raise HTTPException(status_code=400, detail="Invalid search type. Must be 'all', 'office', 'street', or 'city'")
     
     # Exclude current user from results
     where_clause["id"] = {"not": current_user_id}
@@ -376,7 +528,10 @@ async def search_carpools(
         match_info = {
             "sameHomeCity": False,
             "sameHomeStreet": False,
-            "sameHomeZipcode": False
+            "sameHomeZipcode": False,
+            "sameOffice": False,
+            "sameWorkStreet": False,
+            "sameWorkCity": False
         }
         
         if current_user.homeAddress and user.homeAddress:
@@ -400,20 +555,23 @@ async def search_carpools(
         
         # Add office match bonus
         if user.companyAddress and current_user.companyAddress:
-            # Same office name
-            if type == "office" and user.companyAddress.officeName and current_user.companyAddress.officeName:
+            # Same office name (for "all" or "office" types)
+            if type in ["all", "office"] and user.companyAddress.officeName and current_user.companyAddress.officeName:
                 if user.companyAddress.officeName.lower() == current_user.companyAddress.officeName.lower():
-                    score += 100
+                    score += 2000  # Highest priority - same office
+                    match_info["sameOffice"] = True
             
-            # Same street
-            if type in ["office", "street"] and user.companyAddress.street and current_user.companyAddress.street:
+            # Same work street (for "all", "office", or "street" types)
+            if type in ["all", "office", "street"] and user.companyAddress.street and current_user.companyAddress.street:
                 if user.companyAddress.street.lower() == current_user.companyAddress.street.lower():
-                    score += 75
+                    score += 150
+                    match_info["sameWorkStreet"] = True
             
-            # Same city (always applicable)
+            # Same work city (always applicable)
             if user.companyAddress.city and current_user.companyAddress.city:
                 if user.companyAddress.city.lower() == current_user.companyAddress.city.lower():
                     score += 50
+                    match_info["sameWorkCity"] = True
         
         return score, match_info
     
