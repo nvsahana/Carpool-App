@@ -80,6 +80,13 @@ function Groups() {
         loadData();
     }, [activeTab, fetchMyGroups, fetchOpenGroups, fetchMyRequests]);
 
+    // Refetch when maxDetour slider changes (only on find-groups tab)
+    useEffect(() => {
+        if (activeTab === 'find-groups') {
+            fetchOpenGroups();
+        }
+    }, [maxDetour]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const handleSelectGroup = async (groupId) => {
         setLoading(true);
         try {
