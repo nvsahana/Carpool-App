@@ -7,7 +7,7 @@ import './Header.css';
 function Header() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { isAuthenticated, isLoading, logout, user } = useAuth();
+    const { isAuthenticated, logout } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     
     useEffect(() => {

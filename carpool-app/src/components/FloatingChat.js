@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getConversations, getMessages, sendMessage, getProfileImageUrl } from '../Routes/api';
 import './FloatingChat.css';
@@ -36,7 +36,7 @@ function FloatingChat() {
         }
     };
 
-    const loadConversations = async () => {
+    const loadConversations = useCallback(async () => {
         try {
             const data = await getConversations();
             setConversations(data);
@@ -45,9 +45,9 @@ function FloatingChat() {
         } catch (err) {
             console.error('Failed to load conversations:', err);
         }
-    };
+    }, []);
 
-    const loadMessages = async (userId, silent = false) => {
+    const loadMessages = useCallback(async (userId, silent = false) => {
         try {
             const data = await getMessages(userId);
             setMessages(data);
@@ -57,7 +57,7 @@ function FloatingChat() {
         } catch (err) {
             console.error('Failed to load messages:', err);
         }
-    };
+    }, [loadConversations]);
 
     const handleOpenChat = (conv) => {
         setActiveChat(conv);
@@ -92,17 +92,6 @@ function FloatingChat() {
 
     const getAvatarUrl = (profilePath) => {
         return getProfileImageUrl(profilePath);
-    };
-
-    const formatTime = (timestamp) => {
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
-        
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-        if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return date.toLocaleDateString();
     };
 
     return (

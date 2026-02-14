@@ -11,7 +11,7 @@ function Login() {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
-    const [submitLogin, isLoading, submitError] = useAsync(apiLogin)
+    const [submitLogin, isLoading] = useAsync(apiLogin)
     const navigate = useNavigate()
     const { login } = useAuth()
 

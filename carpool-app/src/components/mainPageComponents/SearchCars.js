@@ -85,6 +85,7 @@ function SearchCars() {
             setTimeout(() => setShowNotification(false), 5000);
         }
         setPreviousRequestCount(currentCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [connectionRequests.received]);
 
     const loadInitialMatches = async () => {
@@ -582,7 +583,7 @@ function SearchCars() {
                                                         </div>
                                                     )}
 
-                                                    {group.detourMiles !== undefined && (
+                                                    {group.detourMiles != null && (
                                                         <div className="match-badge match-badge-distance">
                                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                                                 <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
@@ -935,7 +936,7 @@ function SearchCars() {
                                         <h3>Group Details</h3>
                                         <p><strong>Members:</strong> {selectedGroup.currentMembers}/{selectedGroup.maxSeats}</p>
                                         <p><strong>Status:</strong> <span className={`status-badge status-${selectedGroup.status}`}>{selectedGroup.status}</span></p>
-                                        {selectedGroup.detourMiles !== undefined && (
+                                        {selectedGroup.detourMiles != null && (
                                             <p><strong>Your detour:</strong> {selectedGroup.detourMiles.toFixed(1)} miles</p>
                                         )}
                                     </div>
