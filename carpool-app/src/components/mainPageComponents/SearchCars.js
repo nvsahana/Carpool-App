@@ -331,12 +331,12 @@ function SearchCars() {
                         <div className="current-address-display">
                             <h3>Your Office Location:</h3>
                             {currentUser.companyAddress.officeName && (
-                                <p><strong>Office:</strong> {currentUser.companyAddress.officeName}</p>
+                                <p><strong>Office:</strong> {typeof currentUser.companyAddress.officeName === 'string' ? currentUser.companyAddress.officeName : (currentUser.companyAddress.officeName?.officeName || '')}</p>
                             )}
                             {currentUser.companyAddress.street && (
                                 <p><strong>Street:</strong> {currentUser.companyAddress.street}</p>
                             )}
-                            <p><strong>City:</strong> {currentUser.companyAddress.city}</p>
+                            <p><strong>City:</strong> {typeof currentUser.companyAddress.city === 'string' ? currentUser.companyAddress.city : currentUser.companyAddress.city?.city || currentUser.companyAddress.city}</p>
                             {currentUser.companyAddress.zipcode && (
                                 <p><strong>Zipcode:</strong> {currentUser.companyAddress.zipcode}</p>
                             )}
@@ -444,13 +444,13 @@ function SearchCars() {
                                         <div className="address-info">
                                             <div className="address-label">Office Location:</div>
                                             {user.companyAddress.officeName && (
-                                                <div className="address-line">{user.companyAddress.officeName}</div>
+                                                <div className="address-line">{typeof user.companyAddress.officeName === 'string' ? user.companyAddress.officeName : (user.companyAddress.officeName?.officeName || '')}</div>
                                             )}
                                             {user.companyAddress.street && (
                                                 <div className="address-line">{user.companyAddress.street}</div>
                                             )}
                                             <div className="address-line">
-                                                {user.companyAddress.city}
+                                                {typeof user.companyAddress.city === 'string' ? user.companyAddress.city : (user.companyAddress.city?.city || '')}
                                                 {user.companyAddress.zipcode && `, ${user.companyAddress.zipcode}`}
                                             </div>
                                         </div>
@@ -579,7 +579,7 @@ function SearchCars() {
 
                                                     {group.destination && (
                                                         <div className="group-destination-compact">
-                                                            📍 {group.destination}
+                                                            📍 {typeof group.destination === 'string' ? group.destination : (group.destination.city || group.destination.officeName || 'Destination')}
                                                         </div>
                                                     )}
 
@@ -654,7 +654,7 @@ function SearchCars() {
                                             </div>
                                             {request.sender.companyAddress && (
                                                 <p className="request-location">
-                                                    📍 {request.sender.companyAddress.city}
+                                                    📍 {typeof request.sender.companyAddress.city === 'string' ? request.sender.companyAddress.city : (request.sender.companyAddress.city?.city || '')}
                                                 </p>
                                             )}
                                             <p className="request-date">
@@ -710,7 +710,7 @@ function SearchCars() {
                                             </div>
                                             {request.receiver.companyAddress && (
                                                 <p className="request-location">
-                                                    📍 {request.receiver.companyAddress.city}
+                                                    📍 {typeof request.receiver.companyAddress.city === 'string' ? request.receiver.companyAddress.city : (request.receiver.companyAddress.city?.city || '')}
                                                 </p>
                                             )}
                                             <p className="request-date">
@@ -775,13 +775,13 @@ function SearchCars() {
                                             <div className="address-info">
                                                 <div className="address-label">Office Location:</div>
                                                 {user.companyAddress.officeName && (
-                                                    <div className="address-line">{user.companyAddress.officeName}</div>
+                                                    <div className="address-line">{typeof user.companyAddress.officeName === 'string' ? user.companyAddress.officeName : (user.companyAddress.officeName?.officeName || '')}</div>
                                                 )}
                                                 {user.companyAddress.street && (
                                                     <div className="address-line">{user.companyAddress.street}</div>
                                                 )}
                                                 <div className="address-line">
-                                                    {user.companyAddress.city}
+                                                    {typeof user.companyAddress.city === 'string' ? user.companyAddress.city : (user.companyAddress.city?.city || '')}
                                                     {user.companyAddress.zipcode && `, ${user.companyAddress.zipcode}`}
                                                 </div>
                                             </div>
@@ -858,12 +858,12 @@ function SearchCars() {
                                 <div className="modal-section">
                                     <h3>Office Location</h3>
                                     {selectedUser.companyAddress.officeName && (
-                                        <p><strong>Office:</strong> {selectedUser.companyAddress.officeName}</p>
+                                        <p><strong>Office:</strong> {typeof selectedUser.companyAddress.officeName === 'string' ? selectedUser.companyAddress.officeName : (selectedUser.companyAddress.officeName?.officeName || '')}</p>
                                     )}
                                     {selectedUser.companyAddress.street && (
                                         <p><strong>Street:</strong> {selectedUser.companyAddress.street}</p>
                                     )}
-                                    <p><strong>City:</strong> {selectedUser.companyAddress.city}</p>
+                                    <p><strong>City:</strong> {typeof selectedUser.companyAddress.city === 'string' ? selectedUser.companyAddress.city : (selectedUser.companyAddress.city?.city || '')}</p>
                                     {selectedUser.companyAddress.zipcode && (
                                         <p><strong>Zipcode:</strong> {selectedUser.companyAddress.zipcode}</p>
                                     )}
@@ -951,7 +951,7 @@ function SearchCars() {
                                     {selectedGroup.destination && (
                                         <div className="modal-section">
                                             <h3>Destination</h3>
-                                            <p>📍 {selectedGroup.destination}</p>
+                                            <p>📍 {typeof selectedGroup.destination === 'string' ? selectedGroup.destination : `${selectedGroup.destination.officeName || ''} ${selectedGroup.destination.city || ''}`.trim()}</p>
                                         </div>
                                     )}
 
