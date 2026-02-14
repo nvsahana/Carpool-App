@@ -8,6 +8,7 @@ import AboutUs from "./components/mainPageComponents/AboutUs.js";
 import Profile from "./components/mainPageComponents/profile.js";
 import Messages from './components/mainPageComponents/Messages';
 import Groups from './components/mainPageComponents/Groups';
+import Contact from './components/mainPageComponents/Contact';
 const router = createBrowserRouter([
     {
         path: '/',
@@ -33,6 +34,10 @@ const router = createBrowserRouter([
             {
                 path: "/about",
                 element: <AboutUs />
+            },
+            {
+                path: "/contact",
+                element: <Contact />
             },
             {
                 path: "/profile",
