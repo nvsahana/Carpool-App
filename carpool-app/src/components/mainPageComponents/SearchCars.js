@@ -600,11 +600,11 @@ function SearchCars() {
                                                             View Details
                                                         </button>
                                                         <button 
-                                                            className="join-group-btn"
+                                                            className={`join-group-btn ${group.userHasRequested || group.hasPendingRequest ? 'requested' : ''}`}
                                                             onClick={() => handleJoinGroup(group.id)}
-                                                            disabled={group.status !== 'open'}
+                                                            disabled={group.status !== 'open' || group.userHasRequested || group.hasPendingRequest}
                                                         >
-                                                            Request to Join
+                                                            {group.userHasRequested || group.hasPendingRequest ? 'Requested to Join' : 'Request to Join'}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -970,16 +970,22 @@ function SearchCars() {
 
                                 <div className="modal-footer">
                                     <button 
-                                        className="connect-btn"
+                                        className={`connect-btn ${selectedGroup.userHasRequested || selectedGroup.hasPendingRequest ? 'requested' : ''}`}
                                         onClick={() => {
                                             handleJoinGroup(selectedGroup.id);
                                             setShowModal(false);
                                             setSelectedGroup(null);
                                         }}
-                                        disabled={selectedGroup.status !== 'open'}
+                                        disabled={selectedGroup.status !== 'open' || selectedGroup.userHasRequested || selectedGroup.hasPendingRequest}
                                     >
-                                        Request to Join Group
+                                        {selectedGroup.userHasRequested || selectedGroup.hasPendingRequest ? 'Requested to Join' : 'Request to Join Group'}
                                     </button>
+                                    {(selectedGroup.userHasRequested || selectedGroup.hasPendingRequest) && (
+                                        <p style={{marginTop: '10px', fontSize: '14px', color: '#666'}}>Your request is pending approval from group members</p>
+                                    )}
+                                    {selectedGroup.status !== 'open' && !selectedGroup.userHasRequested && (
+                                        <p style={{marginTop: '10px', fontSize: '14px', color: '#666'}}>This group is currently {selectedGroup.status}</p>
+                                    )}
                                 </div>
                             </>
                         )}

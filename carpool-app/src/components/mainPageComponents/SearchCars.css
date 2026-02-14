@@ -855,6 +855,30 @@
     cursor: not-allowed;
 }
 
+.join-group-btn.requested {
+    background: #28a745;
+    color: #fff;
+    cursor: not-allowed;
+}
+
+.join-group-btn.requested:disabled {
+    background: #28a745;
+    color: #fff;
+    opacity: 0.8;
+}
+
+.connect-btn.requested {
+    background: #28a745;
+    color: #fff;
+    cursor: not-allowed;
+}
+
+.connect-btn.requested:disabled {
+    background: #28a745;
+    color: #fff;
+    opacity: 0.8;
+}
+
 .group-actions-compact .learn-more-btn {
     margin-top: 0;
     flex: 1;
