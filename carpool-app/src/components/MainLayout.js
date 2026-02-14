@@ -1,6 +1,7 @@
 import Header from "./Header";
 import { Outlet } from "react-router-dom";
 import Footer from "./Footer";
+import FloatingChat from "./FloatingChat";
 import { AuthProvider } from "../context/AuthContext";
 
 function MainLayout() {
@@ -9,6 +10,7 @@ function MainLayout() {
             <Header />
             <Outlet />
             <Footer />
+            <FloatingChat />
         </AuthProvider>
     )
 }

@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, searchCarpools, getProfileImageUrl, sendConnectionRequest, getConnectionRequests, acceptConnectionRequest, rejectConnectionRequest, getConnectedUsers } from '../../Routes/api';
+import { 
+    getCurrentUser, 
+    searchCarpools, 
+    getProfileImageUrl, 
+    sendConnectionRequest, 
+    getConnectionRequests, 
+    acceptConnectionRequest, 
+    rejectConnectionRequest, 
+    getConnectedUsers,
+    searchOpenGroups,
+    requestToJoinGroup,
+    getGroupDetails
+} from '../../Routes/api';
 import './SearchCars.css';
 
 function SearchCars() {
     const navigate = useNavigate();
     const [currentUser, setCurrentUser] = useState(null);
+    const [viewMode, setViewMode] = useState('users'); // 'users' or 'groups'
     const [searchType, setSearchType] = useState('all'); // all, office, street, city
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -19,6 +32,11 @@ function SearchCars() {
     const [newRequestsCount, setNewRequestsCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);
     const [previousRequestCount, setPreviousRequestCount] = useState(0);
+    
+    // Groups state
+    const [openGroups, setOpenGroups] = useState([]);
+    const [maxDetour, setMaxDetour] = useState(3);
+    const [selectedGroup, setSelectedGroup] = useState(null);
 
     useEffect(() => {
         const token = localStorage.getItem('access_token');
@@ -104,6 +122,40 @@ function SearchCars() {
         return connectedUsers.some(user => user.id === userId);
     };
 
+    const loadOpenGroups = async () => {
+        setLoading(true);
+        setHasSearched(false);
+        try {
+            const data = await searchOpenGroups(maxDetour);
+            setOpenGroups(data.groups || []);
+        } catch (err) {
+            console.error('Failed to fetch open groups:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleJoinGroup = async (groupId) => {
+        try {
+            await requestToJoinGroup(groupId);
+            alert('Join request sent! Group members will vote on your request.');
+            loadOpenGroups(); // Refresh the list
+        } catch (err) {
+            console.error('Failed to send join request:', err);
+            alert(err.message || 'Failed to send join request');
+        }
+    };
+
+    const handleSelectGroup = async (group) => {
+        try {
+            const details = await getGroupDetails(group.id);
+            setSelectedGroup(details);
+            setShowModal(true);
+        } catch (err) {
+            console.error('Failed to load group details:', err);
+        }
+    };
+
     const handleSearch = async () => {
         if (!currentUser || !currentUser.companyAddress) {
             alert('Please complete your company address in your profile first.');
@@ -113,8 +165,13 @@ function SearchCars() {
         setLoading(true);
         setHasSearched(true); // Mark as user-initiated search
         try {
-            const data = await searchCarpools(searchType);
-            setResults(data);
+            if (viewMode === 'users') {
+                const data = await searchCarpools(searchType);
+                setResults(data);
+            } else {
+                const data = await searchOpenGroups(maxDetour);
+                setOpenGroups(data.groups || []);
+            }
         } catch (err) {
             console.error('Search failed:', err);
             alert('Search failed. Please try again.');
@@ -203,13 +260,44 @@ function SearchCars() {
             <div className="search-container">
                 <h1 className="search-title">Find Your Carpool Match</h1>
                 
+                {/* View Mode Toggle */}
+                <div className="view-mode-toggle">
+                    <button
+                        className={`view-mode-btn ${viewMode === 'users' ? 'active' : ''}`}
+                        onClick={() => {
+                            setViewMode('users');
+                            setHasSearched(false);
+                        }}
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                        </svg>
+                        Find Rides
+                    </button>
+                    <button
+                        className={`view-mode-btn ${viewMode === 'groups' ? 'active' : ''}`}
+                        onClick={() => {
+                            setViewMode('groups');
+                            setHasSearched(false);
+                            if (openGroups.length === 0) {
+                                loadOpenGroups();
+                            }
+                        }}
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l-5.5 9h11z M12 13l-5.5 9h11z M17.5 11c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z M6.5 11c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        Find Groups
+                    </button>
+                </div>
+                
                 {/* Tab Navigation */}
                 <div className="tabs">
                     <button 
                         className={`tab-btn ${activeTab === 'search' ? 'active' : ''}`}
                         onClick={() => setActiveTab('search')}
                     >
-                        Search Carpools
+                        {viewMode === 'users' ? 'Search Carpools' : 'Search Groups'}
                     </button>
                     <button 
                         className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
@@ -234,7 +322,10 @@ function SearchCars() {
                 {/* Search Tab */}
                 {activeTab === 'search' && (
                     <>
-                        <div className="search-form">
+                        {viewMode === 'users' ? (
+                            /* Users Search UI */
+                            <>
+                            <div className="search-form">
                     {currentUser && currentUser.companyAddress && (
                         <div className="current-address-display">
                             <h3>Your Office Location:</h3>
@@ -431,6 +522,103 @@ function SearchCars() {
                         </p>
                     </div>
                 )}
+            </>
+                        ) : (
+                            /* Groups Search UI */
+                            <div className="groups-search-form">
+                                <div className="detour-filter-compact">
+                                    <label>
+                                        Max Detour: <strong>{maxDetour} miles</strong>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="10"
+                                        value={maxDetour}
+                                        onChange={(e) => setMaxDetour(parseInt(e.target.value))}
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={() => loadOpenGroups()} 
+                                    className="search-button" 
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Searching...' : 'Search for Groups'}
+                                </button>
+
+                                {/* Groups Results */}
+                                {openGroups.length > 0 && (
+                                    <div className="results-section">
+                                        <h2 className="results-title">
+                                            Found {openGroups.length} open group{openGroups.length !== 1 ? 's' : ''}
+                                        </h2>
+                                        <div className="results-grid">
+                                            {openGroups.map((group) => (
+                                                <div key={group.id} className="group-card-compact">
+                                                    <h3 className="group-name">{group.name}</h3>
+                                                    
+                                                    <div className="group-meta-compact">
+                                                        <span className="group-seats-compact">
+                                                            {group.currentMembers}/{group.maxSeats} members
+                                                        </span>
+                                                        <span className={`group-status-badge ${group.status}`}>
+                                                            {group.status}
+                                                        </span>
+                                                    </div>
+
+                                                    {group.driver && (
+                                                        <div className="group-driver-compact">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M5 11h14v5H5v-5zM19 17H5v2h14v-2zM4 6h16l-2 5H6L4 6z"/>
+                                                            </svg>
+                                                            <span>Driver: {group.driver.firstName} {group.driver.lastName}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {group.destination && (
+                                                        <div className="group-destination-compact">
+                                                            📍 {group.destination}
+                                                        </div>
+                                                    )}
+
+                                                    {group.detourMiles !== undefined && (
+                                                        <div className="match-badge match-badge-distance">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
+                                                            </svg>
+                                                            <span>{group.detourMiles.toFixed(1)} mi detour</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="group-actions-compact">
+                                                        <button 
+                                                            className="learn-more-btn"
+                                                            onClick={() => handleSelectGroup(group)}
+                                                        >
+                                                            View Details
+                                                        </button>
+                                                        <button 
+                                                            className="join-group-btn"
+                                                            onClick={() => handleJoinGroup(group.id)}
+                                                            disabled={group.status !== 'open'}
+                                                        >
+                                                            Request to Join
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!loading && openGroups.length === 0 && (
+                                    <div className="no-results">
+                                        <p>No open groups found within {maxDetour} miles. Try increasing the detour distance.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
 
@@ -634,12 +822,22 @@ function SearchCars() {
                 )}
             </div>
 
-            {showModal && selectedUser && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
+            {showModal && (selectedUser || selectedGroup) && (
+                <div className="modal-overlay" onClick={() => {
+                    setShowModal(false);
+                    setSelectedUser(null);
+                    setSelectedGroup(null);
+                }}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
+                        <button className="modal-close" onClick={() => {
+                            setShowModal(false);
+                            setSelectedUser(null);
+                            setSelectedGroup(null);
+                        }}>×</button>
                         
-                        <div className="modal-header">
+                        {selectedUser && (
+                            <>
+                                <div className="modal-header">
                             {getAvatarUrl(selectedUser.profilePath) ? (
                                 <img 
                                     src={getAvatarUrl(selectedUser.profilePath)} 
@@ -723,6 +921,67 @@ function SearchCars() {
                                 </button>
                             )}
                         </div>
+                            </>
+                        )}
+
+                        {selectedGroup && (
+                            <>
+                                <div className="modal-header">
+                                    <h2>{selectedGroup.name}</h2>
+                                </div>
+
+                                <div className="modal-body">
+                                    <div className="modal-section">
+                                        <h3>Group Details</h3>
+                                        <p><strong>Members:</strong> {selectedGroup.currentMembers}/{selectedGroup.maxSeats}</p>
+                                        <p><strong>Status:</strong> <span className={`status-badge status-${selectedGroup.status}`}>{selectedGroup.status}</span></p>
+                                        {selectedGroup.detourMiles !== undefined && (
+                                            <p><strong>Your detour:</strong> {selectedGroup.detourMiles.toFixed(1)} miles</p>
+                                        )}
+                                    </div>
+
+                                    {selectedGroup.driver && (
+                                        <div className="modal-section">
+                                            <h3>Driver</h3>
+                                            <p>{selectedGroup.driver.firstName} {selectedGroup.driver.lastName}</p>
+                                        </div>
+                                    )}
+
+                                    {selectedGroup.destination && (
+                                        <div className="modal-section">
+                                            <h3>Destination</h3>
+                                            <p>📍 {selectedGroup.destination}</p>
+                                        </div>
+                                    )}
+
+                                    {selectedGroup.members && selectedGroup.members.length > 0 && (
+                                        <div className="modal-section">
+                                            <h3>Members</h3>
+                                            {selectedGroup.members.map((member, idx) => (
+                                                <p key={idx}>
+                                                    {member.firstName} {member.lastName}
+                                                    {member.role === 'driver' && ' (Driver)'}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="modal-footer">
+                                    <button 
+                                        className="connect-btn"
+                                        onClick={() => {
+                                            handleJoinGroup(selectedGroup.id);
+                                            setShowModal(false);
+                                            setSelectedGroup(null);
+                                        }}
+                                        disabled={selectedGroup.status !== 'open'}
+                                    >
+                                        Request to Join Group
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
